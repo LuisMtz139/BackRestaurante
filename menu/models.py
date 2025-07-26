@@ -24,8 +24,8 @@ class productoMenu(models.Model):
     precio = models.DecimalField(max_digits=10, decimal_places=2)
     categoria = models.ForeignKey(CategoriaMenu, on_delete=models.SET_NULL, null=True)
     status = models.BooleanField(default=True)
-    tiempoPreparacion = models.IntegerField(default=0) 
-    imagen = models.CharField(max_length=255, blank=True, null=True)
+    tiempoPreparacion = models.IntegerField(default=0, blank=True, null=True) 
+    imagen = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

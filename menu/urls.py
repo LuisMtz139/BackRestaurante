@@ -14,7 +14,7 @@ urlpatterns = [
     #MENU
     path('crearMenu/', CrearMenu.as_view(), name='CrearMenu'),
     path('eliminarMenu/<int:id>/', eliminarMenu.as_view(), name='EliminarMenu'),
-    path('modificarMenu/<int:id>/', modificarMenu.as_view(), name='ModificarMenu'),
+    path('modificarMenu/<int:id>/', ModificarMenu.as_view(), name='ModificarMenu'),
     path('listarMenuPorCategoria/<int:categoriaId>/', listarMenuPorCategoria.as_view(), name='listarMenuPorCategoria'),
     path('listarTodoMenu/', listarTodoMenu.as_view(), name='listarTodoMenu'),
     #path('listarMenu/', listarMenu.as_view(), name='listarMenu'),

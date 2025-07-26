@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from menu.manager import ProcesosMenu
 from menu.models import  *
-
+import base64
 
 #categoria menu
 class CrearCategoriaMenu(APIView):
@@ -88,26 +88,27 @@ class listarCategorias(APIView):
 # Menu
 class CrearMenu(APIView):
     def post(self, request):
-        
         nombre = request.POST.get('nombre')
         descripcion = request.POST.get('descripcion')
         precio = request.POST.get('precio')
         tiempoPreparacion = request.POST.get('tiempoPreparacion')
-        #imagen = request.FILES.get('imagen')
-        imagen = request.POST.get('imagen')
         categoriaId = request.POST.get('categoriaId')
 
-        if not nombre or not descripcion or not precio or not tiempoPreparacion or not imagen:
+        imagen_file = request.FILES.get('imagen')
+        if imagen_file is not None:
+            imagen = base64.b64encode(imagen_file.read()).decode()
+        else:
+            imagen = request.POST.get('imagen')
+
+
+        if not nombre or not descripcion or not precio:
             return Response('Todos los campos son obligatorios', status=400)
-        
         if not categoriaId:
             return Response('La categoría es obligatoria', status=400)
-
 
         categoria = CategoriaMenu.objects.validarExistenciaCategoria(categoriaId)
         if not categoria:
             return Response('Categoría no encontrada', status=404)
-        
 
         producto = productoMenu.objects.create(
             nombre=nombre,
@@ -139,7 +140,7 @@ class eliminarMenu(APIView):
         
         return Response({'mensaje': 'Producto eliminado correctamente'}, status=200)
     
-class modificarMenu(APIView):
+class ModificarMenu(APIView):
     def put(self, request, id):
         if not id:
             return Response({'error': 'El ID es obligatorio'}, status=400)
@@ -151,9 +152,14 @@ class modificarMenu(APIView):
         nombre = request.POST.get('nombre')
         descripcion = request.POST.get('descripcion')
         precio = request.POST.get('precio')
-        tiempoPreparacion = request.POST.get('tiempoPreparacion')
-        imagen = request.data.get('imagen')
-        categoriaId = request.POST.get('categoriaId')
+        tiempo_preparacion = request.POST.get('tiempoPreparacion')
+        categoria_id = request.POST.get('categoriaId')
+
+        imagen_file = request.FILES.get('imagen')
+        if imagen_file is not None:
+            imagen = base64.b64encode(imagen_file.read()).decode()
+        else:
+            imagen = request.POST.get('imagen')
 
         if nombre:
             producto.nombre = nombre
@@ -161,13 +167,13 @@ class modificarMenu(APIView):
             producto.descripcion = descripcion
         if precio:
             producto.precio = precio
-        if tiempoPreparacion:
-            producto.tiempoPreparacion = tiempoPreparacion
+        if tiempo_preparacion:
+            producto.tiempoPreparacion = tiempo_preparacion
         if imagen:
             producto.imagen = imagen
-        if categoriaId:
+        if categoria_id:
             try:
-                categoria = CategoriaMenu.objects.get(id=categoriaId)
+                categoria = CategoriaMenu.objects.get(id=categoria_id)
                 producto.categoria = categoria
             except CategoriaMenu.DoesNotExist:
                 return Response({'error': 'Categoría no encontrada'}, status=404)
