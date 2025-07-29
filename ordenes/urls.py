@@ -8,4 +8,5 @@ urlpatterns = [
     path('obtenerMesasConPedidosAbiertos/', ObtenerMesasConPedidosAbiertos.as_view(), name='obtener_pedidos_por_mesa'),
     path('actualizarStatusorden/<int:id>/', actualizarStatusorden.as_view(), name='actualizar_status_orden'),
     path('ObtenerTodosPedidosOrdenes/', obtenerTodosPedidosOrdenes.as_view(), name='obtener_todos_pedidos_ordenes'),
+    path('TotalVentasPorFecha/', TotalVentasPorFecha.as_view(), name='TotalVentasPorFecha'),
 ]

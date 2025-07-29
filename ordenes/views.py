@@ -1,9 +1,9 @@
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-
 from ordenes.models import *
-
+from datetime import datetime
+from ordenes.models import Pedido
 
 class crearOrden(APIView):
     def post(self, request):
@@ -176,3 +176,22 @@ class obtenerTodosPedidosOrdenes(APIView):
             "success": True,
             "pedidos": pedidos_data
         }, status=200)
+        
+class TotalVentasPorFecha(APIView):
+    def get(self, request):
+        fechaStr = request.query_params.get('fecha')
+        if not fechaStr:
+            return Response({'error': 'La fecha es obligatoria (formato YYYY-MM-DD)'}, status=400)
+        try:
+            fecha = datetime.strptime(fechaStr, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Formato de fecha inválido. Usa YYYY-MM-DD'}, status=400)
+
+        pedidos = Pedido.objects.filter(fecha__date=fecha, status='completado')
+        total = 0
+        for pedido in pedidos:
+            for detalle in pedido.detalles.all():
+                precio = detalle.producto.precio if detalle.producto else 0
+                total += precio * detalle.cantidad
+
+        return Response({'fecha': fechaStr, 'totalVentas': float(total)}, status=200)

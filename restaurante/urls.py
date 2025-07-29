@@ -13,6 +13,7 @@ urlpatterns = [
     path('menu/', include('menu.urls')),
     path('mesas/', include('mesas.urls')),
     path('ordenes/', include('ordenes.urls')),
+    path('usuarios/', include('usuarios.urls')),
 ]
 
 if settings.DEBUG:

@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'menu',
     'mesero',
     'ordenes',
+    'usuarios',
 ]
 
 REST_FRAMEWORK = {
