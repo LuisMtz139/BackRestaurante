@@ -127,3 +127,52 @@ class ObtenerMesasConPedidosAbiertos(APIView):
             "success": True,
             "mesas": mesasData
         }, status=200)
+        
+class actualizarStatusorden(APIView):
+    def post(self, request, id):
+        
+        verificarPedido = Pedido.objects.filter(id=id).first()
+        if not verificarPedido:
+            return Response({'error': 'Pedido no encontrado'}, status=404)
+
+        status = request.data.get('status')
+        
+        actualizarPedido = Pedido.objects.actualizarPedido(id, status)
+        
+        if not actualizarPedido:
+            return Response({'error': 'Error al actualizar el pedido'}, status=500)
+        
+        return Response({
+            'success': True,
+            'pedidoId': actualizarPedido.id,
+            'status': actualizarPedido.status
+        }, status=200)
+
+class obtenerTodosPedidosOrdenes(APIView):
+    def get(self, request):
+        pedidos = Pedido.objects.all()
+        if not pedidos.exists():
+            return Response({"message": "No hay pedidos registrados"}, status=200)
+
+        pedidos_data = []
+        for pedido in pedidos:
+            detalles_data = []
+            for detalle in pedido.detalles.all():
+                detalles_data.append({
+                    "productoId": detalle.producto.id if detalle.producto else None,
+                    "nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
+                    "cantidad": detalle.cantidad,
+                    "observaciones": detalle.observaciones
+                })
+            pedidos_data.append({
+                "pedidoId": pedido.id,
+                "nombreOrden": pedido.nombreOrden,
+                "fecha": pedido.fecha,
+                "status": pedido.status,
+                "detalles": detalles_data
+            })
+
+        return Response({
+            "success": True,
+            "pedidos": pedidos_data
+        }, status=200)
