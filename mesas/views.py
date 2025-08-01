@@ -15,13 +15,16 @@ class CrearMesa(APIView):
 
         obtenerMesa = Mesa.objects.verificarExistenciaMesa(numeroMesa)
         
-        if not obtenerMesa:
+        if obtenerMesa:
             return Response('La mesa ya existe', status=400)
 
+        # Crear la mesa con status en False (ocupada)
+        nueva_mesa = Mesa.objects.create(numeroMesa=numeroMesa, status=False)
+
         return Response({
-            'id': obtenerMesa.id,
-            'numeroMesa': obtenerMesa.numeroMesa,
-            'status': obtenerMesa.status,
+            'id': nueva_mesa.id,
+            'numeroMesa': nueva_mesa.numeroMesa,
+            'status': nueva_mesa.status,
         }, status=201)
         
 class EliminarMesa(APIView):
@@ -42,22 +45,19 @@ class ActualizarStatusMesa(APIView):
         if not mesa:
             return Response({'error': 'Mesa no encontrada'}, status=404)
         
-        # Espera que te manden: { "status": true }  o  { "status": false }
         nuevo_status = request.data.get('status')
         if nuevo_status is None:
             return Response({'error': 'El campo status es obligatorio y debe ser true o false.'}, status=400)
         
-        # Si quieres cerrar la mesa (status = false), verifica que no haya productos en proceso
-        if nuevo_status is False or nuevo_status == "false" or nuevo_status == 0:
-            # Revisa si existe algún detalle en proceso en cualquiera de los pedidos de la mesa
+        # Si se quiere cambiar a status=True (abrir la mesa), revisa que no haya productos en proceso
+        if nuevo_status is True or nuevo_status == "true" or nuevo_status == 1:
             productos_en_proceso = mesa.pedido_set.filter(detalles__status="proceso").exists()
             if productos_en_proceso:
                 return Response({
                     'success': False,
-                    'message': f'No se puede cerrar la mesa {mesa.numeroMesa} porque aún hay productos en proceso.'
+                    'message': f'No se puede poner status=True a la mesa {mesa.numeroMesa} porque aún hay productos en proceso.'
                 }, status=400)
         
-        # Si llegaste aquí, se puede actualizar el status
         mesa.status = bool(nuevo_status)
         mesa.save()
         return Response({

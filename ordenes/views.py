@@ -36,7 +36,7 @@ class crearOrden(APIView):
                 producto_id=productoId,
                 cantidad=cantidad,
                 observaciones=observaciones,
-                status=status  # Ahora el status es por detalle
+                status=True  # Ahora el status es por detalle
             )
 
         return Response({
