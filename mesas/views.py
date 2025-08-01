@@ -36,28 +36,28 @@ class EliminarMesa(APIView):
         mesa.delete()
         return Response({'mensaje': 'Mesa eliminada correctamente'}, status=200)
   
-class LiberarMesa(APIView):
+class ActualizarStatusMesa(APIView):
     def post(self, request, mesa_id):
         mesa = Mesa.objects.filter(id=mesa_id).first()
         if not mesa:
-            return Response({'error': 'Mesa no encontrada'}, status=4004)
+            return Response({'error': 'Mesa no encontrada'}, status=404)
         
-        pedidos_abiertos = Pedido.objects.filter(
-            idMesa=mesa,
-            detalles__status="proceso"
-        ).distinct()
-
-        if pedidos_abiertos.exists():
-            return Response({
-                'success': False,
-                'message': 'No se puede liberar la mesa: Hay pedidos abiertos pendientes en esta mesa.'
-            }, status=400)
+        # Espera que te manden: { "status": true }  o  { "status": false }
+        nuevo_status = request.data.get('status')
+        if nuevo_status is None:
+            return Response({'error': 'El campo status es obligatorio y debe ser true o false.'}, status=400)
         
-        mesa.status = True
+        # Actualiza el status booleano
+        mesa.status = bool(nuevo_status)
         mesa.save()
         return Response({
             'success': True,
-            'message': f'Mesa {mesa.numeroMesa} liberada y disponible.'
+            'message': f'Status de la mesa {mesa.numeroMesa} actualizado correctamente.',
+            'mesa': {
+                'id': mesa.id,
+                'numeroMesa': mesa.numeroMesa,
+                'status': mesa.status
+            }
         }, status=200)
   
 class modificarStatusMesa(APIView):

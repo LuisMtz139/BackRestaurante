@@ -7,5 +7,5 @@ urlpatterns = [
     path('eliminarMesa/<int:id>/', EliminarMesa.as_view(), name='EliminarMesa'),
     path('modificarStatusMesa/<int:id>/', modificarStatusMesa.as_view(), name='modificarStatusMesa'),
     path('listarMesas/', lsitarMesasStatus.as_view (), name='listarMesas'),
-    path('liberarMesa/<int:mesa_id>/', LiberarMesa.as_view(), name='LiberarMesa'),
+    path('liberarMesa/<int:mesa_id>/', ActualizarStatusMesa.as_view(), name='LiberarMesa'),
 ]
