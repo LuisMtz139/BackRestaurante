@@ -15,16 +15,13 @@ class CrearMesa(APIView):
 
         obtenerMesa = Mesa.objects.verificarExistenciaMesa(numeroMesa)
         
-        if obtenerMesa:
+        if not obtenerMesa:
             return Response('La mesa ya existe', status=400)
 
-        # Crear la mesa con status en False (ocupada)
-        nueva_mesa = Mesa.objects.create(numeroMesa=numeroMesa, status=False)
-
         return Response({
-            'id': nueva_mesa.id,
-            'numeroMesa': nueva_mesa.numeroMesa,
-            'status': nueva_mesa.status,
+            'id': obtenerMesa.id,
+            'numeroMesa': obtenerMesa.numeroMesa,
+            'status': obtenerMesa.status,
         }, status=201)
         
 class EliminarMesa(APIView):

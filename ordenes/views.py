@@ -15,6 +15,13 @@ class crearOrden(APIView):
         if not nombreOrden or not mesaId or not productos or not status:
             return Response({"error": "Todos los campos son obligatorios"}, status=400)
 
+        # Buscar la mesa y actualizar el status a False (ocupada)
+        mesa = Mesa.objects.filter(id=mesaId).first()
+        if not mesa:
+            return Response({"error": "La mesa especificada no existe"}, status=400)
+        mesa.status = False
+        mesa.save()
+
         pedido = Pedido.objects.create(
             nombreOrden=nombreOrden,
             idMesa_id=mesaId,
@@ -46,7 +53,7 @@ class crearOrden(APIView):
             "mesaId": pedido.idMesa_id,
             "productos": productos
         }, status=201)
-        
+            
 class obtenerListaPedidosPendientes(APIView):
     def get(self, request):
         pedidos = Pedido.objects.all().order_by('fecha')  # Trae todos los pedidos, puedes filtrar por mesa si necesitas
