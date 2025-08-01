@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from mesas.models import Mesa
+from ordenes.models import Pedido
 
 
 class CrearMesa(APIView):
@@ -34,7 +35,31 @@ class EliminarMesa(APIView):
 
         mesa.delete()
         return Response({'mensaje': 'Mesa eliminada correctamente'}, status=200)
-    
+  
+class LiberarMesa(APIView):
+    def post(self, request, mesa_id):
+        mesa = Mesa.objects.filter(id=mesa_id).first()
+        if not mesa:
+            return Response({'error': 'Mesa no encontrada'}, status=4004)
+        
+        pedidos_abiertos = Pedido.objects.filter(
+            idMesa=mesa,
+            detalles__status="proceso"
+        ).distinct()
+
+        if pedidos_abiertos.exists():
+            return Response({
+                'success': False,
+                'message': 'No se puede liberar la mesa: Hay pedidos abiertos pendientes en esta mesa.'
+            }, status=400)
+        
+        mesa.status = True
+        mesa.save()
+        return Response({
+            'success': True,
+            'message': f'Mesa {mesa.numeroMesa} liberada y disponible.'
+        }, status=200)
+  
 class modificarStatusMesa(APIView):
     def put(self, request, id):
         if not id:

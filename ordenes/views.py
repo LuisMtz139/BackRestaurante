@@ -145,6 +145,28 @@ class ActualizarStatusDetalle(APIView):
             'detalleId': detalle.id,
             'nuevoStatus': detalle.status
         }, status=200)
+        
+class CompletarYTotalPedido(APIView):
+    def post(self, request, pedido_id):
+        pedido = Pedido.objects.filter(id=pedido_id).first()
+        if not pedido:
+            return Response({'error': 'Pedido no encontrado'}, status=404)
+
+        detalles = pedido.detalles.all()
+        total = 0
+
+        for detalle in detalles:
+            if detalle.producto:  # Verifica que el producto exista (no eliminado)
+                subtotal = detalle.producto.precio * detalle.cantidad
+                total += subtotal
+            detalle.status = "completado"
+            detalle.save()
+
+        return Response({
+            'success': True,
+            'pedidoId': pedido.id,
+            'total': total
+        }, status=200)
 
 class obtenerTodosPedidosOrdenes(APIView):
     def get(self, request):
