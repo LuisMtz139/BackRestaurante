@@ -18,7 +18,6 @@ class crearOrden(APIView):
         pedido = Pedido.objects.create(
             nombreOrden=nombreOrden,
             idMesa_id=mesaId,
-            status=status
         )
         if not pedido:
             return Response({"error": "Error al crear el pedido"}, status=500)
@@ -50,27 +49,27 @@ class crearOrden(APIView):
         
 class obtenerListaPedidosPendientes(APIView):
     def get(self, request):
-        pedidos = Pedido.objects.obtenerPedidoEnProceso()
-        if not pedidos:
-            return Response({"message": "No hay pedidos en proceso"}, status=200)
-        
+        pedidos = Pedido.objects.all().order_by('fecha')  # Trae todos los pedidos, puedes filtrar por mesa si necesitas
         pedidosPorMesa = []
         for pedido in pedidos:
             mesa = pedido.idMesa
-            detalles = pedido.detalles.all()
+            detalles = pedido.detalles.filter(status="proceso")  # Solo detalles pendientes
             listaDetalles = []
             for detalle in detalles:
                 listaDetalles.append({
                     "productoId": detalle.producto.id if detalle.producto else None,
                     "nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
                     "cantidad": detalle.cantidad,
-                    "observaciones": detalle.observaciones
+                    "observaciones": detalle.observaciones,
+                    "status": detalle.status,
                 })
+            if not listaDetalles:
+                continue  # Si no hay detalles pendientes, no mostrar el pedido
+
             pedidoInfo = {
                 "pedidoId": pedido.id,
                 "nombreOrden": pedido.nombreOrden,
                 "fecha": pedido.fecha,
-                "status": pedido.status,
                 "detalles": listaDetalles
             }
             mesaExistente = next((m for m in pedidosPorMesa if m["numeroMesa"] == mesa.numeroMesa), None)
@@ -82,75 +81,68 @@ class obtenerListaPedidosPendientes(APIView):
             else:
                 mesaExistente["pedidos"].append(pedidoInfo)
         
+        if not pedidosPorMesa:
+            return Response({"message": "No hay pedidos pendientes"}, status=200)
+
         return Response({
             "success": True,
             "pedidosPorMesa": pedidosPorMesa
         }, status=200)
         
-class ObtenerMesasConPedidosAbiertos(APIView):
+class ObtenerTodasLasMesasConProductos(APIView):
     def get(self, request):
-        mesas = Mesa.objects.obtenerMesasConPedidoAbierto()
+        mesas = Mesa.objects.all()  # Muestra todas las mesas, no solo abiertas
         if not mesas:
-            return Response({"message": "No hay mesas abiertas"}, status=200)
-        
+            return Response({"message": "No hay mesas registradas"}, status=200)
+
         mesasData = []
         for mesa in mesas:
+            # Trae todos los pedidos de esa mesa
             pedidosMesa = mesa.pedido_set.all().order_by('fecha')
-            pedidosData = []
+            productosData = []
             for pedido in pedidosMesa:
                 detalles = pedido.detalles.all()
-                detallesData = []
-                totalPedido = 0
                 for detalle in detalles:
-                    precioUnitario = detalle.producto.precio if detalle.producto else 0
-                    subtotal = precioUnitario * detalle.cantidad
-                    totalPedido += subtotal
-                    detallesData.append({
+                    productosData.append({
+                        "detalleId": detalle.id,
+                        "pedidoId": pedido.id,
+                        "nombreOrden": pedido.nombreOrden,
+                        "fechaPedido": pedido.fecha,
                         "productoId": detalle.producto.id if detalle.producto else None,
                         "nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
                         "cantidad": detalle.cantidad,
-                        "precioUnitario": float(precioUnitario),
-                        "subtotal": float(subtotal),
+                        "precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
                         "observaciones": detalle.observaciones,
-                        "status": detalle.status  # <--- Nuevo: status individual del producto
+                        "statusDetalle": detalle.status,
                     })
-                pedidosData.append({
-                    "pedidoId": pedido.id,
-                    "nombreOrden": pedido.nombreOrden,
-                    "fecha": pedido.fecha,
-                    "status": pedido.status,
-                    "total": float(totalPedido),
-                    "detalles": detallesData
-                })
             mesasData.append({
                 "numeroMesa": mesa.numeroMesa,
-                "status": mesa.status,
-                "pedidos": pedidosData
+                "statusMesa": mesa.status,
+                "productosPedidos": productosData
             })
-        
+
         return Response({
             "success": True,
             "mesas": mesasData
         }, status=200)
-            
-class actualizarStatusorden(APIView):
-    def post(self, request, id):
-        
-        verificarPedido = Pedido.objects.filter(id=id).first()
-        if not verificarPedido:
-            return Response({'error': 'Pedido no encontrado'}, status=404)
+             
+class ActualizarStatusDetalle(APIView):
+    def post(self, request, detalle_id):
+        detalle = DetallePedido.objects.filter(id=detalle_id).first()
+        if not detalle:
+            return Response({'error': 'DetallePedido no encontrado'}, status=404)
 
         status = request.data.get('status')
-        
-        actualizarPedido = Pedido.objects.actualizarPedido(id, status)
-        
-        if not actualizarPedido:
-            return Response({'error': 'Error al actualizar el pedido'}, status=500)
-        
+        if not status:
+            return Response({'error': 'El campo status es obligatorio'}, status=400)
+
+        detalle.status = status
+        detalle.save()
+
         return Response({
             'success': True,
-            'pedidoId': actualizarPedido.id,
-            'status': actualizarPedido.status
+            'detalleId': detalle.id,
+            'nuevoStatus': detalle.status
         }, status=200)
 
 class obtenerTodosPedidosOrdenes(APIView):
