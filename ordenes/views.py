@@ -102,9 +102,14 @@ class ObtenerTodasLasMesasConProductos(APIView):
         mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
         mesas_data = []
         for mesa in mesas:
+            pedidos_abiertos = (
+                mesa.pedido_set
+                .filter(detalles__status="proceso")  # Solo pedidos con al menos un detalle en proceso
+                .distinct()
+                .order_by('-fecha')
+            )
             pedidos_data = []
-            pedidos = mesa.pedido_set.all().order_by('fecha')
-            for pedido in pedidos:
+            for pedido in pedidos_abiertos:
                 detalles_data = []
                 for detalle in pedido.detalles.all():
                     detalles_data.append({
@@ -125,18 +130,19 @@ class ObtenerTodasLasMesasConProductos(APIView):
                     "fechaPedido": pedido.fecha,
                     "detalles": detalles_data,
                 })
-            mesas_data.append({
-                "id": mesa.id,
-                "numeroMesa": getattr(mesa, "numeroMesa", getattr(mesa, "numero_mesa", None)),
-                "status": mesa.status,
-                "pedidos": pedidos_data
-            })
+            if pedidos_data:  # Solo agregamos mesas con pedidos abiertos
+                mesas_data.append({
+                    "id": mesa.id,
+                    "numeroMesa": getattr(mesa, "numeroMesa", getattr(mesa, "numero_mesa", None)),
+                    "status": mesa.status,
+                    "pedidos": pedidos_data
+                })
 
         return Response({
             "success": True,
             "mesasOcupadas": mesas_data
         }, status=200)
-                    
+        
 class ActualizarStatusDetalle(APIView):
     def post(self, request, detalle_id):
         detalle = DetallePedido.objects.filter(id=detalle_id).first()
