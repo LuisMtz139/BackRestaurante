@@ -102,16 +102,11 @@ class ObtenerTodasLasMesasConProductos(APIView):
         mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
         mesas_data = []
         for mesa in mesas:
-            pedidos_abiertos = (
-                mesa.pedido_set
-                .filter(detalles__status="proceso")  # Solo pedidos con al menos un detalle en proceso
-                .distinct()
-                .order_by('-fecha')
-            )
+            ultimo_pedido = mesa.pedido_set.order_by('-fecha').first()
             pedidos_data = []
-            for pedido in pedidos_abiertos:
+            if ultimo_pedido:
                 detalles_data = []
-                for detalle in pedido.detalles.all():
+                for detalle in ultimo_pedido.detalles.all():
                     detalles_data.append({
                         "detalleId": detalle.id,
                         "productoId": detalle.producto.id if detalle.producto else None,
@@ -120,23 +115,22 @@ class ObtenerTodasLasMesasConProductos(APIView):
                         "precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
                         "observaciones": detalle.observaciones,
                         "statusDetalle": detalle.status,
-                        "fechaPedido": pedido.fecha,
-                        "nombreOrden": pedido.nombreOrden,
-                        "pedidoId": pedido.id,
+                        "fechaPedido": ultimo_pedido.fecha,
+                        "nombreOrden": ultimo_pedido.nombreOrden,
+                        "pedidoId": ultimo_pedido.id,
                     })
                 pedidos_data.append({
-                    "pedidoId": pedido.id,
-                    "nombreOrden": pedido.nombreOrden,
-                    "fechaPedido": pedido.fecha,
+                    "pedidoId": ultimo_pedido.id,
+                    "nombreOrden": ultimo_pedido.nombreOrden,
+                    "fechaPedido": ultimo_pedido.fecha,
                     "detalles": detalles_data,
                 })
-            if pedidos_data:  # Solo agregamos mesas con pedidos abiertos
-                mesas_data.append({
-                    "id": mesa.id,
-                    "numeroMesa": getattr(mesa, "numeroMesa", getattr(mesa, "numero_mesa", None)),
-                    "status": mesa.status,
-                    "pedidos": pedidos_data
-                })
+            mesas_data.append({
+                "id": mesa.id,
+                "numeroMesa": getattr(mesa, "numeroMesa", getattr(mesa, "numero_mesa", None)),
+                "status": mesa.status,
+                "pedidos": pedidos_data  # Puede ser [] si aún no hay pedidos en la mesa
+            })
 
         return Response({
             "success": True,
