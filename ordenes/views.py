@@ -29,11 +29,15 @@ class crearOrden(APIView):
             observaciones = producto.get("observaciones", "")
             if not productoId:
                 continue
+            # Verifica que el producto exista
+            if not productoMenu.objects.filter(id=productoId).exists():
+                return Response({"error": f"El producto con ID {productoId} no existe"}, status=400)
             DetallePedido.objects.create(
                 pedido=pedido,
                 producto_id=productoId,
                 cantidad=cantidad,
-                observaciones=observaciones
+                observaciones=observaciones,
+                status=status  # Ahora el status es por detalle
             )
 
         return Response({
@@ -91,7 +95,6 @@ class ObtenerMesasConPedidosAbiertos(APIView):
         
         mesasData = []
         for mesa in mesas:
-            # Cambia aquí: obtén TODOS los pedidos de la mesa (no solo los abiertos)
             pedidosMesa = mesa.pedido_set.all().order_by('fecha')
             pedidosData = []
             for pedido in pedidosMesa:
@@ -108,7 +111,8 @@ class ObtenerMesasConPedidosAbiertos(APIView):
                         "cantidad": detalle.cantidad,
                         "precioUnitario": float(precioUnitario),
                         "subtotal": float(subtotal),
-                        "observaciones": detalle.observaciones
+                        "observaciones": detalle.observaciones,
+                        "status": detalle.status  # <--- Nuevo: status individual del producto
                     })
                 pedidosData.append({
                     "pedidoId": pedido.id,
