@@ -92,17 +92,14 @@ class obtenerListaPedidosPendientes(APIView):
         
 class ObtenerTodasLasMesasConProductos(APIView):
     def get(self, request):
-        mesas = Mesa.objects.all()  # Muestra todas las mesas, no solo abiertas
-        if not mesas:
-            return Response({"message": "No hay mesas registradas"}, status=200)
-
+        mesas = Mesa.objects.all()  # Todas las mesas
         mesasData = []
         for mesa in mesas:
-            # Trae todos los pedidos de esa mesa
             pedidosMesa = mesa.pedido_set.all().order_by('fecha')
             productosData = []
             for pedido in pedidosMesa:
-                detalles = pedido.detalles.all()
+                # Solo detalles en "proceso" o "cancelado"
+                detalles = pedido.detalles.filter(status__in=["proceso", "cancelado"])
                 for detalle in detalles:
                     productosData.append({
                         "detalleId": detalle.id,
@@ -116,17 +113,22 @@ class ObtenerTodasLasMesasConProductos(APIView):
                         "observaciones": detalle.observaciones,
                         "statusDetalle": detalle.status,
                     })
-            mesasData.append({
-                "numeroMesa": mesa.numeroMesa,
-                "statusMesa": mesa.status,
-                "productosPedidos": productosData
-            })
+            # Solo agregar la mesa si tiene productos en proceso o cancelados
+            if productosData:
+                mesasData.append({
+                    "numeroMesa": mesa.numeroMesa,
+                    "statusMesa": mesa.status,
+                    "productosPedidos": productosData
+                })
+
+        if not mesasData:
+            return Response({"message": "No hay mesas con productos en proceso o cancelados"}, status=200)
 
         return Response({
             "success": True,
             "mesas": mesasData
         }, status=200)
-             
+                 
 class ActualizarStatusDetalle(APIView):
     def post(self, request, detalle_id):
         detalle = DetallePedido.objects.filter(id=detalle_id).first()
