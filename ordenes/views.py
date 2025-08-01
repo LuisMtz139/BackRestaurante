@@ -57,6 +57,7 @@ class obtenerListaPedidosPendientes(APIView):
             listaDetalles = []
             for detalle in detalles:
                 listaDetalles.append({
+                    "detalleId": detalle.id,  # <--- Aquí agregas el id único del detalle del pedido
                     "productoId": detalle.producto.id if detalle.producto else None,
                     "nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
                     "cantidad": detalle.cantidad,
