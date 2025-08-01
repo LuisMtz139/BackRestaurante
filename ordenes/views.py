@@ -43,7 +43,7 @@ class crearOrden(APIView):
                 producto_id=productoId,
                 cantidad=cantidad,
                 observaciones=observaciones,
-                status=True  # Ahora el status es por detalle
+                status=status 
             )
 
         return Response({
@@ -99,41 +99,44 @@ class obtenerListaPedidosPendientes(APIView):
         
 class ObtenerTodasLasMesasConProductos(APIView):
     def get(self, request):
-        mesas = Mesa.objects.filter(status=False)  # Solo mesas cerradas
-        mesasData = []
+        mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
+        mesas_data = []
         for mesa in mesas:
-            pedidosMesa = mesa.pedido_set.all().order_by('fecha')
-            productosData = []
-            for pedido in pedidosMesa:
-                detalles = pedido.detalles.filter(status__in=["proceso", "cancelado", "completado"])
-                for detalle in detalles:
-                    productosData.append({
+            pedidos_data = []
+            pedidos = mesa.pedido_set.all().order_by('fecha')
+            for pedido in pedidos:
+                detalles_data = []
+                for detalle in pedido.detalles.all():
+                    detalles_data.append({
                         "detalleId": detalle.id,
-                        "pedidoId": pedido.id,
-                        "nombreOrden": pedido.nombreOrden,
-                        "fechaPedido": pedido.fecha,
                         "productoId": detalle.producto.id if detalle.producto else None,
                         "nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
                         "cantidad": detalle.cantidad,
                         "precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
                         "observaciones": detalle.observaciones,
                         "statusDetalle": detalle.status,
+                        "fechaPedido": pedido.fecha,
+                        "nombreOrden": pedido.nombreOrden,
+                        "pedidoId": pedido.id,
                     })
-            if productosData:
-                mesasData.append({
-                    "numeroMesa": mesa.numeroMesa,
-                    "statusMesa": mesa.status,
-                    "productosPedidos": productosData
+                pedidos_data.append({
+                    "pedidoId": pedido.id,
+                    "nombreOrden": pedido.nombreOrden,
+                    "fechaPedido": pedido.fecha,
+                    "detalles": detalles_data,
                 })
-
-        if not mesasData:
-            return Response({"message": "No hay mesas cerradas con productos en proceso, cancelados o completados"}, status=200)
+            mesas_data.append({
+                "id": mesa.id,
+                "numeroMesa": getattr(mesa, "numeroMesa", getattr(mesa, "numero_mesa", None)),
+                "status": mesa.status,
+                "pedidos": pedidos_data
+            })
 
         return Response({
             "success": True,
-            "mesas": mesasData
+            "mesasOcupadas": mesas_data
         }, status=200)
-                 
+                    
 class ActualizarStatusDetalle(APIView):
     def post(self, request, detalle_id):
         detalle = DetallePedido.objects.filter(id=detalle_id).first()
