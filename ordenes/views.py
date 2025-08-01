@@ -92,17 +92,14 @@ class obtenerListaPedidosPendientes(APIView):
         
 class ObtenerTodasLasMesasConProductos(APIView):
     def get(self, request):
-        mesas = Mesa.objects.all()  # Todas las mesas
+        mesas = Mesa.objects.filter(status=False)  # Solo mesas cerradas
         mesasData = []
         for mesa in mesas:
             pedidosMesa = mesa.pedido_set.all().order_by('fecha')
             productosData = []
-            hay_producto_en_proceso = False
             for pedido in pedidosMesa:
                 detalles = pedido.detalles.filter(status__in=["proceso", "cancelado", "completado"])
                 for detalle in detalles:
-                    if detalle.status == "proceso":
-                        hay_producto_en_proceso = True
                     productosData.append({
                         "detalleId": detalle.id,
                         "pedidoId": pedido.id,
@@ -115,17 +112,15 @@ class ObtenerTodasLasMesasConProductos(APIView):
                         "observaciones": detalle.observaciones,
                         "statusDetalle": detalle.status,
                     })
-            # Determina el status de la mesa: True si hay productos en proceso, False si no
-            status_mesa = True if hay_producto_en_proceso else False
             if productosData:
                 mesasData.append({
                     "numeroMesa": mesa.numeroMesa,
-                    "statusMesa": status_mesa,
+                    "statusMesa": mesa.status,
                     "productosPedidos": productosData
                 })
 
         if not mesasData:
-            return Response({"message": "No hay mesas con productos en proceso, cancelados o completados"}, status=200)
+            return Response({"message": "No hay mesas cerradas con productos en proceso, cancelados o completados"}, status=200)
 
         return Response({
             "success": True,

@@ -47,7 +47,17 @@ class ActualizarStatusMesa(APIView):
         if nuevo_status is None:
             return Response({'error': 'El campo status es obligatorio y debe ser true o false.'}, status=400)
         
-        # Actualiza el status booleano
+        # Si quieres cerrar la mesa (status = false), verifica que no haya productos en proceso
+        if nuevo_status is False or nuevo_status == "false" or nuevo_status == 0:
+            # Revisa si existe algún detalle en proceso en cualquiera de los pedidos de la mesa
+            productos_en_proceso = mesa.pedido_set.filter(detalles__status="proceso").exists()
+            if productos_en_proceso:
+                return Response({
+                    'success': False,
+                    'message': f'No se puede cerrar la mesa {mesa.numeroMesa} porque aún hay productos en proceso.'
+                }, status=400)
+        
+        # Si llegaste aquí, se puede actualizar el status
         mesa.status = bool(nuevo_status)
         mesa.save()
         return Response({
