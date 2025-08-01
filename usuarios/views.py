@@ -90,6 +90,26 @@ class ListarUsuarios(APIView):
             })
         return Response(lista, status=200)
     
+class obtenerUsuario(APIView):
+    def get(self, request):
+        email = request.data.get('email')
+        usuario= request.data.get('id')
+        
+        if usuario:
+            usuario = Usuario.objects.filter(id=usuario).first()
+        elif email:
+            usuario = Usuario.objects.filter(email=email).first()
+
+        if not usuario:
+            return Response({'error': 'Usuario no encontrado'}, status=404)
+
+        return Response({
+            'id': usuario.id,
+            'nombre': usuario.nombre,
+            'email': usuario.email,
+            'isAdmin': usuario.isAdmin,
+        }, status=200)
+    
 class LoginUsuario(APIView):
     def post(self, request):
         email = request.data.get('email')

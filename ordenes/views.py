@@ -91,9 +91,10 @@ class ObtenerMesasConPedidosAbiertos(APIView):
         
         mesasData = []
         for mesa in mesas:
-            pedidosAbiertos = mesa.pedido_set.filter(status='proceso').order_by('fecha')
+            # Cambia aquí: obtén TODOS los pedidos de la mesa (no solo los abiertos)
+            pedidosMesa = mesa.pedido_set.all().order_by('fecha')
             pedidosData = []
-            for pedido in pedidosAbiertos:
+            for pedido in pedidosMesa:
                 detalles = pedido.detalles.all()
                 detallesData = []
                 totalPedido = 0
@@ -127,7 +128,7 @@ class ObtenerMesasConPedidosAbiertos(APIView):
             "success": True,
             "mesas": mesasData
         }, status=200)
-        
+            
 class actualizarStatusorden(APIView):
     def post(self, request, id):
         
