@@ -9,5 +9,5 @@ urlpatterns = [
     path('actualizarStatusorden/<int:detalle_id>/', ActualizarStatusDetalle.as_view(), name='actualizar_status_orden'),
     path('CompletarYTotalPedido/<int:pedido_id>/', CompletarYTotalPedido.as_view(), name='completar_y_total_pedido'),
     path('ObtenerTodosPedidosOrdenes/', obtenerTodosPedidosOrdenes.as_view(), name='obtener_todos_pedidos_ordenes'),
-    path('TotalVentasPorFecha/', TotalVentasPorFecha.as_view(), name='TotalVentasPorFecha'),
+    path('TotalVentasPorFecha/', TotalVentasPorRangoFechas.as_view(), name='TotalVentasPorFecha'),
 ]

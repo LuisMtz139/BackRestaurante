@@ -207,21 +207,32 @@ class obtenerTodosPedidosOrdenes(APIView):
             "pedidos": pedidos_data
         }, status=200)
         
-class TotalVentasPorFecha(APIView):
+class TotalVentasPorRangoFechas(APIView):
     def get(self, request):
-        fechaStr = request.query_params.get('fecha')
-        if not fechaStr:
-            return Response({'error': 'La fecha es obligatoria (formato YYYY-MM-DD)'}, status=400)
+        fecha_inicio_str = request.query_params.get('fecha_inicio')
+        fecha_fin_str = request.query_params.get('fecha_fin')
+        if not fecha_inicio_str or not fecha_fin_str:
+            return Response({'error': 'Debes proporcionar fecha_inicio y fecha_fin en formato YYYY-MM-DD'}, status=400)
         try:
-            fecha = datetime.strptime(fechaStr, '%Y-%m-%d').date()
+            fecha_inicio = datetime.strptime(fecha_inicio_str, '%Y-%m-%d')
+            fecha_fin = datetime.strptime(fecha_fin_str, '%Y-%m-%d')
         except ValueError:
             return Response({'error': 'Formato de fecha inválido. Usa YYYY-MM-DD'}, status=400)
 
-        pedidos = Pedido.objects.filter(fecha__date=fecha, status='completado')
+        # NO filtres por status a nivel Pedido, solo por fechas
+        pedidos = Pedido.objects.filter(
+            fecha__date__gte=fecha_inicio.date(),
+            fecha__date__lte=fecha_fin.date()
+        )
+
         total = 0
         for pedido in pedidos:
-            for detalle in pedido.detalles.all():
+            for detalle in pedido.detalles.filter(status='completado'):  # <- Aquí sí puedes filtrar por status
                 precio = detalle.producto.precio if detalle.producto else 0
                 total += precio * detalle.cantidad
 
-        return Response({'fecha': fechaStr, 'totalVentas': float(total)}, status=200)
+        return Response({
+            'fecha_inicio': fecha_inicio_str,
+            'fecha_fin': fecha_fin_str,
+            'totalVentas': float(total)
+        }, status=200)
