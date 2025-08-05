@@ -5,7 +5,7 @@ from django.db import connection
 
 class procesosMesas(models.Manager):
     def obtenerMesas(self):
-        return self.filter(status=True)
+        return self.all()
     
     def verificarExistenciaMesa(self, numeroMesa):
         mesa = self.filter(numeroMesa=numeroMesa).first()

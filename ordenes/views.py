@@ -26,8 +26,6 @@ class crearOrden(APIView):
             nombreOrden=nombreOrden,
             idMesa_id=mesaId,
         )
-        if not pedido:
-            return Response({"error": "Error al crear el pedido"}, status=500)
 
         for producto in productos:
             productoId = producto.get("productoId")
@@ -101,12 +99,22 @@ class ObtenerTodasLasMesasConProductos(APIView):
     def get(self, request):
         mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
         mesas_data = []
+        
         for mesa in mesas:
-            ultimo_pedido = mesa.pedido_set.order_by('-fecha').first()
+            # Solo pedidos que tengan productos en proceso
+            pedidos_activos = mesa.pedido_set.filter(
+                detalles__status='proceso'
+            ).distinct().order_by('-fecha')
+            
             pedidos_data = []
-            if ultimo_pedido:
+            for pedido in pedidos_activos:
+                # Solo detalles en proceso
+                detalles_proceso = pedido.detalles.filter(status='proceso')
+                if not detalles_proceso.exists():
+                    continue
+                    
                 detalles_data = []
-                for detalle in ultimo_pedido.detalles.all():
+                for detalle in detalles_proceso:
                     detalles_data.append({
                         "detalleId": detalle.id,
                         "productoId": detalle.producto.id if detalle.producto else None,
@@ -115,27 +123,90 @@ class ObtenerTodasLasMesasConProductos(APIView):
                         "precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
                         "observaciones": detalle.observaciones,
                         "statusDetalle": detalle.status,
-                        "fechaPedido": ultimo_pedido.fecha,
-                        "nombreOrden": ultimo_pedido.nombreOrden,
-                        "pedidoId": ultimo_pedido.id,
+                        "fechaPedido": pedido.fecha,
+                        "nombreOrden": pedido.nombreOrden,
+                        "pedidoId": pedido.id,
                     })
-                pedidos_data.append({
-                    "pedidoId": ultimo_pedido.id,
-                    "nombreOrden": ultimo_pedido.nombreOrden,
-                    "fechaPedido": ultimo_pedido.fecha,
-                    "detalles": detalles_data,
+                
+                if detalles_data:  # Solo agregar si hay detalles en proceso
+                    pedidos_data.append({
+                        "pedidoId": pedido.id,
+                        "nombreOrden": pedido.nombreOrden,
+                        "fechaPedido": pedido.fecha,
+                        "detalles": detalles_data,
+                    })
+            
+            if pedidos_data:  # Solo agregar mesa si tiene pedidos activos
+                mesas_data.append({
+                    "id": mesa.id,
+                    "numeroMesa": mesa.numeroMesa,
+                    "status": mesa.status,
+                    "pedidos": pedidos_data
                 })
-            mesas_data.append({
-                "id": mesa.id,
-                "numeroMesa": getattr(mesa, "numeroMesa", getattr(mesa, "numero_mesa", None)),
-                "status": mesa.status,
-                "pedidos": pedidos_data  # Puede ser [] si aún no hay pedidos en la mesa
-            })
 
         return Response({
             "success": True,
             "mesasOcupadas": mesas_data
         }, status=200)
+        
+class agregarProductosAPedido(APIView):
+    def post(self, request):
+        pedidoId = request.data.get("pedidoId")
+        productos = request.data.get("productos")
+        
+        if not pedidoId or not productos:
+            return Response({
+                "error": "Los campos pedidoId y productos son obligatorios"
+            }, status=400)
+        
+        # Verificar que el pedido existe
+        pedido = Pedido.objects.filter(id=pedidoId).first()
+        if not pedido:
+            return Response({
+                "error": "El pedido especificado no existe"
+            }, status=400)
+        
+        productosAgregados = []
+        for producto in productos:
+            productoId = producto.get("productoId")
+            cantidad = producto.get("cantidad", 1)
+            observaciones = producto.get("observaciones", "")
+            status = producto.get("status", "proceso")
+            
+            if not productoId:
+                continue
+                
+            # Verificar que el producto existe
+            if not productoMenu.objects.filter(id=productoId).exists():
+                return Response({
+                    "error": f"El producto con ID {productoId} no existe"
+                }, status=400)
+            
+            # Crear el nuevo detalle
+            nuevoDetalle = DetallePedido.objects.create(
+                pedido=pedido,
+                producto_id=productoId,
+                cantidad=cantidad,
+                observaciones=observaciones,
+                status=status
+            )
+            
+            productosAgregados.append({
+                "detalleId": nuevoDetalle.id,
+                "productoId": productoId,
+                "cantidad": cantidad,
+                "observaciones": observaciones,
+                "status": status
+            })
+        
+        return Response({
+            "success": True,
+            "pedidoId": pedido.id,
+            "nombreOrden": pedido.nombreOrden,
+            "productosAgregados": productosAgregados,
+            "totalProductosAgregados": len(productosAgregados)
+        }, status=201)        
+
         
 class ActualizarStatusDetalle(APIView):
     def post(self, request, detalle_id):
