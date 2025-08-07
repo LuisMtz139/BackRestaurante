@@ -10,7 +10,6 @@ class Pedido(models.Model):
     idMesa = models.ForeignKey(Mesa, on_delete=models.CASCADE)
     fecha = models.DateTimeField(auto_now_add=True)
     createdAt = models.DateTimeField(auto_now_add=True)
-    # NUEVO CAMPO usando los mismos STATUS_CHOICES
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='proceso')
 
     objects = procesoPedido()
