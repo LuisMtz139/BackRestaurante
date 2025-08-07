@@ -18,4 +18,4 @@ class procesosMesas(models.Manager):
         return self.filter(id=id).first()
     
     def obtenerMesasConPedidoAbierto(self):
-        return self.filter(status=True, pedido__status='proceso').distinct()
+        return self.filter(status=True).distinct()
