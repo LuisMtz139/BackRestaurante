@@ -46,27 +46,45 @@ class ActualizarStatusMesa(APIView):
         if nuevo_status is None:
             return Response({'error': 'El campo status es obligatorio y debe ser true o false.'}, status=400)
         
-        # Si se quiere cambiar a status=True (abrir la mesa), revisa que no haya productos en proceso
+        # Si se quiere cambiar a status=True (liberar la mesa)
         if nuevo_status is True or nuevo_status == "true" or nuevo_status == 1:
             productos_en_proceso = mesa.pedido_set.filter(detalles__status="proceso").exists()
             if productos_en_proceso:
                 return Response({
                     'success': False,
-                    'message': f'No se puede poner status=True a la mesa {mesa.numeroMesa} porque aún hay productos en proceso.'
+                    'message': f'No se puede liberar la mesa {mesa.numeroMesa} porque aún hay productos en proceso.'
                 }, status=400)
+            
+            # Marcar todos los pedidos de la mesa como completados
+            mesa.pedido_set.exclude(status='completado').update(status='completado')
+            
+            # Liberar la mesa
+            mesa.status = True
+            mesa.save()
+            
+            return Response({
+                'success': True,
+                'message': f'Mesa {mesa.numeroMesa} liberada correctamente.',
+                'mesa': {
+                    'id': mesa.id,
+                    'numeroMesa': mesa.numeroMesa,
+                    'status': mesa.status
+                }
+            }, status=200)
         
-        mesa.status = bool(nuevo_status)
-        mesa.save()
-        return Response({
-            'success': True,
-            'message': f'Status de la mesa {mesa.numeroMesa} actualizado correctamente.',
-            'mesa': {
-                'id': mesa.id,
-                'numeroMesa': mesa.numeroMesa,
-                'status': mesa.status
-            }
-        }, status=200)
-  
+        # Si se quiere cambiar a status=False (ocupar la mesa)
+        else:
+            mesa.status = bool(nuevo_status)
+            mesa.save()
+            return Response({
+                'success': True,
+                'message': f'Status de la mesa {mesa.numeroMesa} actualizado correctamente.',
+                'mesa': {
+                    'id': mesa.id,
+                    'numeroMesa': mesa.numeroMesa,
+                    'status': mesa.status
+                }
+            }, status=200)
 class modificarStatusMesa(APIView):
     def put(self, request, id):
         if not id:

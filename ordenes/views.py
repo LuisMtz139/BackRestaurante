@@ -101,12 +101,13 @@ class ObtenerTodasLasMesasConProductos(APIView):
         mesas_data = []
         
         for mesa in mesas:
-            # Obtener TODOS los pedidos de la mesa (no filtrar por status de detalles)
-            pedidos_mesa = mesa.pedido_set.all().order_by('-fecha')
+            # Solo pedidos que NO estén completados (proceso o cancelado)
+            pedidos_activos = mesa.pedido_set.exclude(
+                status='completado'
+            ).order_by('-fecha')
             
             pedidos_data = []
-            for pedido in pedidos_mesa:
-                # Obtener TODOS los detalles del pedido
+            for pedido in pedidos_activos:
                 detalles = pedido.detalles.all()
                     
                 detalles_data = []
@@ -124,26 +125,28 @@ class ObtenerTodasLasMesasConProductos(APIView):
                         "pedidoId": pedido.id,
                     })
                 
-                # Agregar el pedido con todos sus detalles
                 pedidos_data.append({
                     "pedidoId": pedido.id,
                     "nombreOrden": pedido.nombreOrden,
                     "fechaPedido": pedido.fecha,
+                    "statusPedido": pedido.status,  # Nuevo campo
                     "detalles": detalles_data,
                 })
             
-            # Agregar la mesa con todos sus pedidos (ya que status=False)
-            mesas_data.append({
-                "id": mesa.id,
-                "numeroMesa": mesa.numeroMesa,
-                "status": mesa.status,
-                "pedidos": pedidos_data
-            })
+            # Solo agregar mesa si tiene pedidos activos
+            if pedidos_data:
+                mesas_data.append({
+                    "id": mesa.id,
+                    "numeroMesa": mesa.numeroMesa,
+                    "status": mesa.status,
+                    "pedidos": pedidos_data
+                })
 
         return Response({
             "success": True,
             "mesasOcupadas": mesas_data
-        }, status=200) 
+        }, status=200)
+        
 class agregarProductosAPedido(APIView):
     def post(self, request):
         pedidoId = request.data.get("pedidoId")
