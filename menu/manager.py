@@ -49,8 +49,8 @@ class ProcesosMenu(models.Manager):
         menu.delete()
         return True
     
-    def obtenerMenuPorCategoria(self, id):
-        return self.filter(id=id)
+    def obtenerMenuPorCategoria(self, categoria_id):
+        return self.filter(categoria=categoria_id, status=True)
     
     def listarTodoMenu(self):
         return self.filter(status=True)
