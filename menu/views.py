@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from menu.manager import ProcesosMenu
 from menu.models import  *
+from django.db.models import Q
 import base64
 
 #categoria menu
@@ -232,4 +233,34 @@ class listarTodoMenu(APIView):
                 'imagen': producto.imagen,
                 'categoria': producto.categoria.nombreCategoria if producto.categoria else None,
             })
+        return Response(serializer, status=200)
+
+class BuscarProductoMenu(APIView):
+    def get(self, request):
+
+        nombre = request.data.get('nombre', '')
+        if not nombre:
+            return Response('El nombre del producto es obligatorio', status=400)
+
+        productos = (
+            productoMenu.objects
+            .select_related('categoria')
+            .filter(status=True)
+            .filter(nombre__icontains=nombre)  # Solo busca en el nombre
+            .order_by('nombre')
+        )
+
+        if not productos.exists():
+            return Response('Producto no encontrado', status=404)
+
+        serializer = [{
+            'id': p.id,
+            'nombre': p.nombre,
+            'descripcion': p.descripcion,
+            'precio': str(p.precio),
+            'tiempoPreparacion': p.tiempoPreparacion,
+            'imagen': p.imagen,
+            'categoria': p.categoria.nombreCategoria if p.categoria else None,
+        } for p in productos]
+
         return Response(serializer, status=200)

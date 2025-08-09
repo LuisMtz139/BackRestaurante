@@ -18,5 +18,6 @@ urlpatterns = [
     path('listarMenuPorCategoria/<int:categoriaId>/', listarMenuPorCategoria.as_view(), name='listarMenuPorCategoria'),
     path('listarTodoMenu/', listarTodoMenu.as_view(), name='listarTodoMenu'),
     #path('listarMenu/', listarMenu.as_view(), name='listarMenu'),
+    path('buscarProductoMenu/', BuscarProductoMenu.as_view(), name='BuscarProductoMenu')
 
 ]
