@@ -6,6 +6,8 @@ from datetime import datetime
 from ordenes.models import Pedido
 from django.utils import timezone
 import pytz
+from django.db import transaction
+
 
 class crearOrden(APIView):
     def post(self, request):
@@ -289,15 +291,9 @@ class TotalVentasPorRangoFechas(APIView):
         fechaInicioDate = datetime.strptime(fechaInicio, '%Y-%m-%d')
         fechaFinDate = datetime.strptime(fechaFin, '%Y-%m-%d')
 
-        # Configurar zona horaria de México
         mexicoTz = pytz.timezone('America/Mexico_City')
-        
-        # Convertir las fechas de México a UTC para la consulta
-        # Inicio del día en México
         inicioMexico = mexicoTz.localize(datetime.combine(fechaInicioDate.date(), datetime.min.time()))
         inicioUtc = inicioMexico.astimezone(pytz.UTC)
-        
-        # Final del día en México (23:59:59)
         finMexico = mexicoTz.localize(datetime.combine(fechaFinDate.date(), datetime.max.time()))
         finUtc = finMexico.astimezone(pytz.UTC)
         
@@ -317,4 +313,102 @@ class TotalVentasPorRangoFechas(APIView):
             'fecha_inicio': fechaInicio,
             'fecha_fin': fechaFin,
             'totalVentas': float(totalVentas)
+        }, status=200)
+        
+
+class ActualizarCantidadDetalle(APIView):
+    def post(self, request, detalleId):
+        detalle = DetallePedido.objects.filter(id=detalleId).select_related('producto', 'pedido').first()
+        if not detalle:
+            return Response({"error": "DetallePedido no encontrado"}, status=404)
+
+        nueva_cantidad = request.data.get("cantidad")
+        if nueva_cantidad is None:
+            return Response({"error": "El campo 'cantidad' es obligatorio"}, status=400)
+
+        if not str(nueva_cantidad).isdigit():
+            return Response({"error": "La cantidad debe ser un número entero"}, status=400)
+
+        nueva_cantidad = int(nueva_cantidad)
+        if nueva_cantidad <= 0:
+            return Response({"error": "La cantidad debe ser mayor a 0"}, status=400)
+
+        detalle.cantidad = nueva_cantidad
+        detalle.save()
+
+        return Response({
+            "success": True,
+            "detalleId": detalle.id,
+            "productoId": detalle.producto.id if detalle.producto else None,
+            "nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
+            "cantidad": detalle.cantidad,
+            "precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
+            "observaciones": detalle.observaciones,
+            "statusDetalle": detalle.status,
+            "fechaPedido": detalle.pedido.fecha,
+            "nombreOrden": detalle.pedido.nombreOrden,
+            "pedidoId": detalle.pedido.id
+        }, status=200)
+        
+        
+class EliminarDetallesDePedido(APIView):
+    def delete(self, request, pedidoId):
+        # Aquí pedidoId es realmente el ID del detalle que quieres eliminar
+        detalle = DetallePedido.objects.filter(id=pedidoId).first()
+        if not detalle:
+            return Response({'error': 'Detalle de pedido no encontrado'}, status=404)
+        
+        print(detalle)
+
+        force = request.query_params.get('force')
+        force = (str(force).strip().lower() in ('1', 'true', 't', 'yes', 'y', 'si', 'sí'))
+
+        # Verificar si el detalle está en proceso
+        if detalle.status == 'proceso' and not force:
+            return Response(
+                {'error': 'No se puede eliminar el detalle: está en proceso. Use ?force=true si desea forzar.'},
+                status=409
+            )
+
+        with transaction.atomic():
+            # Guardar información antes de eliminar
+            pedido_id = detalle.pedido.id
+            producto_nombre = detalle.producto.nombre if detalle.producto else "Producto eliminado"
+            cantidad = detalle.cantidad
+            
+            # Eliminar el detalle específico
+            detalle.delete()
+
+        return Response({
+            'success': True,
+            'message': f'Se eliminó el detalle: {cantidad} x {producto_nombre} del pedido {pedido_id}.'
+        }, status=200)
+        
+        
+class EliminarPedidoCompleto(APIView):
+    def delete(self, request, idMesa):
+        pedido = Pedido.objects.filter(id=idMesa).select_related('idMesa').first()
+        if not pedido:
+            return Response({'error': 'Pedido no encontrado'}, status=404)
+
+        mesa = pedido.idMesa
+
+        with transaction.atomic():
+            # Borra el pedido; DetallePedido se borra por cascada
+            pedido.delete()
+
+            # Verifica si la mesa queda sin pedidos
+            tiene_pedidos = mesa.pedido_set.exists()
+            if not tiene_pedidos and mesa.status is False:
+                mesa.status = True
+                mesa.save()
+
+        return Response({
+            'success': True,
+            'message': f'Pedido eliminado correctamente. Mesa {mesa.numeroMesa} {"liberada" if not tiene_pedidos else "permanece ocupada"}.',
+            'mesa': {
+                'id': mesa.id,
+                'numeroMesa': mesa.numeroMesa,
+                'status': mesa.status
+            }
         }, status=200)
