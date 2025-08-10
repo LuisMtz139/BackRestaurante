@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from ordenes.models import *
 from datetime import datetime
 from ordenes.models import Pedido
+from django.db.models import Sum, F, DecimalField
+from django.db.models.functions import TruncDate
 
 class crearOrden(APIView):
     def post(self, request):
@@ -278,30 +280,29 @@ class obtenerTodosPedidosOrdenes(APIView):
         
 class TotalVentasPorRangoFechas(APIView):
     def get(self, request):
-        fecha_inicio_str = request.query_params.get('fecha_inicio')
-        fecha_fin_str = request.query_params.get('fecha_fin')
-        if not fecha_inicio_str or not fecha_fin_str:
+        fechaInicio = request.query_params.get('fecha_inicio')
+        fechaFin = request.query_params.get('fecha_fin')
+        
+        if not fechaInicio or not fechaFin:
             return Response({'error': 'Debes proporcionar fecha_inicio y fecha_fin en formato YYYY-MM-DD'}, status=400)
-        try:
-            fecha_inicio = datetime.strptime(fecha_inicio_str, '%Y-%m-%d')
-            fecha_fin = datetime.strptime(fecha_fin_str, '%Y-%m-%d')
-        except ValueError:
-            return Response({'error': 'Formato de fecha inválido. Usa YYYY-MM-DD'}, status=400)
 
-        # NO filtres por status a nivel Pedido, solo por fechas
-        pedidos = Pedido.objects.filter(
-            fecha__date__gte=fecha_inicio.date(),
-            fecha__date__lte=fecha_fin.date()
+        fechaInicioDate = datetime.strptime(fechaInicio, '%Y-%m-%d')
+        fechaFinDate = datetime.strptime(fechaFin, '%Y-%m-%d')
+
+        detallesCompletados = DetallePedido.objects.filter(
+            pedido__fecha__date__gte=fechaInicioDate.date(),
+            pedido__fecha__date__lte=fechaFinDate.date(),
+            status='completado',
+            producto__isnull=False
         )
 
-        total = 0
-        for pedido in pedidos:
-            for detalle in pedido.detalles.filter(status='completado'):  # <- Aquí sí puedes filtrar por status
-                precio = detalle.producto.precio if detalle.producto else 0
-                total += precio * detalle.cantidad
+        totalVentas = 0
+        for detalle in detallesCompletados:
+            precio = detalle.producto.precio if detalle.producto else 0
+            totalVentas += precio * detalle.cantidad
 
         return Response({
-            'fecha_inicio': fecha_inicio_str,
-            'fecha_fin': fecha_fin_str,
-            'totalVentas': float(total)
+            'fecha_inicio': fechaInicio,
+            'fecha_fin': fechaFin,
+            'totalVentas': float(totalVentas)
         }, status=200)
