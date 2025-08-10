@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from ordenes.models import *
 from datetime import datetime
 from ordenes.models import Pedido
-from django.db.models import Sum, F, DecimalField
-from django.db.models.functions import TruncDate
+from django.utils import timezone
+import pytz
 
 class crearOrden(APIView):
     def post(self, request):
@@ -289,9 +289,21 @@ class TotalVentasPorRangoFechas(APIView):
         fechaInicioDate = datetime.strptime(fechaInicio, '%Y-%m-%d')
         fechaFinDate = datetime.strptime(fechaFin, '%Y-%m-%d')
 
+        # Configurar zona horaria de México
+        mexicoTz = pytz.timezone('America/Mexico_City')
+        
+        # Convertir las fechas de México a UTC para la consulta
+        # Inicio del día en México
+        inicioMexico = mexicoTz.localize(datetime.combine(fechaInicioDate.date(), datetime.min.time()))
+        inicioUtc = inicioMexico.astimezone(pytz.UTC)
+        
+        # Final del día en México (23:59:59)
+        finMexico = mexicoTz.localize(datetime.combine(fechaFinDate.date(), datetime.max.time()))
+        finUtc = finMexico.astimezone(pytz.UTC)
+        
         detallesCompletados = DetallePedido.objects.filter(
-            pedido__fecha__date__gte=fechaInicioDate.date(),
-            pedido__fecha__date__lte=fechaFinDate.date(),
+            pedido__fecha__gte=inicioUtc,
+            pedido__fecha__lte=finUtc,
             status='completado',
             producto__isnull=False
         )
