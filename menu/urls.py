@@ -9,6 +9,7 @@ urlpatterns = [
     path('modificarCategoriaMenu/<int:id>/', modificarCategoriaMenu.as_view(), name='modificarCategoriaMenu'),
     path('listarCategorias/', listarCategorias.as_view(), name='listarCategorias'),
     path('eliminarCategoriaMenu/<int:id>/', eliminarCategoriaMenu.as_view(), name='eliminarCategoriaMenu'),
+    path('actualizarOrdenCategoriaMenu/<int:idCategoriaMenu>/', actualizarOrdenCategoriaMenu.as_view(), name='actualizarOrdenCategoriaMenu'),
 
 
     #MENU

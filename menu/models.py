@@ -7,6 +7,7 @@ class CategoriaMenu(models.Model):
     nombreCategoria = models.CharField(max_length=100, unique=True)
     descripcion = models.CharField(max_length=255, blank=True, null=True)
     status = models.BooleanField(default=True)
+    ordenMenu = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

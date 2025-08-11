@@ -25,7 +25,7 @@ class ProcesosCategoriaMenu(models.Manager):
         return categoria
     
     def obtenerCategorias(self):
-        categorias = self.all()
+        categorias = self.all().filter(status=True).order_by('ordenMenu')
         if not categorias:
             return None
         return categorias

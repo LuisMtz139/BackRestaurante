@@ -85,6 +85,33 @@ class listarCategorias(APIView):
             })
         return Response(serializer, status=200)
 
+class actualizarOrdenCategoriaMenu(APIView):
+    def put(self, request, idCategoriaMenu):
+        
+        categoria = CategoriaMenu.objects.filter(id=idCategoriaMenu).first()
+        if not categoria:
+            return Response({'error': 'Categoría no encontrada'}, status=404)
+        
+        nuevo_orden = request.data.get('ordenMenu')
+        if nuevo_orden is None:
+            return Response({'error': 'El campo ordenMenu es requerido'}, status=400)
+        
+        if not isinstance(nuevo_orden, int) and not str(nuevo_orden).isdigit():
+            return Response({'error': 'El ordenMenu debe ser un número entero'}, status=400)
+        
+        categoria.ordenMenu = int(nuevo_orden)
+        categoria.save()
+        
+        return Response({
+            'success': True,
+            'categoria': {
+                'id': categoria.id,
+                'nombreCategoria': categoria.nombreCategoria,
+                'ordenMenu': categoria.ordenMenu,
+                'descripcion': categoria.descripcion,
+                'status': categoria.status
+            }
+        }, status=200)
 
 # Menu
 class CrearMenu(APIView):
