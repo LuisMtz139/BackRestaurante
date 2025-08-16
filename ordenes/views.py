@@ -300,7 +300,7 @@ class TotalVentasPorRangoFechas(APIView):
         detallesCompletados = DetallePedido.objects.filter(
             pedido__fecha__gte=inicioUtc,
             pedido__fecha__lte=finUtc,
-            status='completado',
+            status='pagado',
             producto__isnull=False
         )
 
