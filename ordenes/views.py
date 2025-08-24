@@ -154,30 +154,28 @@ class ObtenerTodasLasMesasConProductos(APIView):
 
 class ObtenerHistorialVentasPorDia(APIView):
     def get(self, request):
-        # Obtener la fecha del parámetro (formato: YYYY-MM-DD)
         fecha = request.GET.get('fecha')
-        
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('page_size', 10))
+
         if not fecha:
             return Response({'error': 'El parámetro fecha es requerido (formato: YYYY-MM-DD)'}, status=400)
-        
+
         try:
             fecha_parsed = datetime.strptime(fecha, '%Y-%m-%d').date()
         except ValueError:
             return Response({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}, status=400)
-        
-        # Obtener TODOS los pedidos completados de esa fecha
+
+        # 1. Traer TODOS los pedidos del día completados
         pedidos_del_dia = Pedido.objects.filter(
             fecha__date=fecha_parsed,
             status='completado'
         ).select_related('idMesa').order_by('-fecha')
-        
-        # Agrupar por mesa
+
+        # 2. Agrupar pedidos por mesa (sin paginar aún)
         mesas_dict = {}
-        
         for pedido in pedidos_del_dia:
             mesa_id = pedido.idMesa.id
-            
-            # Si la mesa no está en el dict, agregarla
             if mesa_id not in mesas_dict:
                 mesas_dict[mesa_id] = {
                     "id": pedido.idMesa.id,
@@ -185,11 +183,9 @@ class ObtenerHistorialVentasPorDia(APIView):
                     "status": pedido.idMesa.status,
                     "pedidos": []
                 }
-            
-            # Obtener detalles del pedido
+
             detalles = pedido.detalles.all()
             detalles_data = []
-            
             for detalle in detalles:
                 detalles_data.append({
                     "detalleId": detalle.id,
@@ -203,8 +199,6 @@ class ObtenerHistorialVentasPorDia(APIView):
                     "nombreOrden": pedido.nombreOrden,
                     "pedidoId": pedido.id,
                 })
-            
-            # Agregar el pedido a la mesa correspondiente
             mesas_dict[mesa_id]["pedidos"].append({
                 "pedidoId": pedido.id,
                 "nombreOrden": pedido.nombreOrden,
@@ -212,15 +206,33 @@ class ObtenerHistorialVentasPorDia(APIView):
                 "statusPedido": pedido.status,
                 "detalles": detalles_data,
             })
-        
-        # Convertir el diccionario a lista
-        mesas_data = list(mesas_dict.values())
+
+        # 3. Convertir a lista y ORDENAR por id de mesa
+        mesas_data = sorted(list(mesas_dict.values()), key=lambda x: x["id"])
+
+        # 4. Paginar la lista de mesas
+        total_mesas = len(mesas_data)
+        start = (page - 1) * page_size
+        end = start + page_size
+        mesas_paginadas = mesas_data[start:end]
+
+        total_pages = (total_mesas + page_size - 1) // page_size
+        has_next = page < total_pages
+        has_previous = page > 1
 
         return Response({
             "success": True,
-            "mesasOcupadas": mesas_data
-        }, status=200)        
-
+            "mesasOcupadas": mesas_paginadas,
+            "pagination": {
+                "current_page": page,
+                "page_size": page_size,
+                "total_mesas": total_mesas,
+                "total_pages": total_pages,
+                "has_next": has_next,
+                "has_previous": has_previous
+            }
+        }, status=200)
+        
 class agregarProductosAPedido(APIView):
     def post(self, request):
         pedidoId = request.data.get("pedidoId")
