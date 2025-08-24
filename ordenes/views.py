@@ -151,6 +151,76 @@ class ObtenerTodasLasMesasConProductos(APIView):
             "mesasOcupadas": mesas_data
         }, status=200)
         
+
+class ObtenerHistorialVentasPorDia(APIView):
+    def get(self, request):
+        # Obtener la fecha del parámetro (formato: YYYY-MM-DD)
+        fecha = request.GET.get('fecha')
+        
+        if not fecha:
+            return Response({'error': 'El parámetro fecha es requerido (formato: YYYY-MM-DD)'}, status=400)
+        
+        try:
+            fecha_parsed = datetime.strptime(fecha, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}, status=400)
+        
+        # Obtener TODOS los pedidos completados de esa fecha
+        pedidos_del_dia = Pedido.objects.filter(
+            fecha__date=fecha_parsed,
+            status='completado'
+        ).select_related('idMesa').order_by('-fecha')
+        
+        # Agrupar por mesa
+        mesas_dict = {}
+        
+        for pedido in pedidos_del_dia:
+            mesa_id = pedido.idMesa.id
+            
+            # Si la mesa no está en el dict, agregarla
+            if mesa_id not in mesas_dict:
+                mesas_dict[mesa_id] = {
+                    "id": pedido.idMesa.id,
+                    "numeroMesa": pedido.idMesa.numeroMesa,
+                    "status": pedido.idMesa.status,
+                    "pedidos": []
+                }
+            
+            # Obtener detalles del pedido
+            detalles = pedido.detalles.all()
+            detalles_data = []
+            
+            for detalle in detalles:
+                detalles_data.append({
+                    "detalleId": detalle.id,
+                    "productoId": detalle.producto.id if detalle.producto else None,
+                    "nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
+                    "cantidad": detalle.cantidad,
+                    "precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
+                    "observaciones": detalle.observaciones,
+                    "statusDetalle": detalle.status,
+                    "fechaPedido": pedido.fecha,
+                    "nombreOrden": pedido.nombreOrden,
+                    "pedidoId": pedido.id,
+                })
+            
+            # Agregar el pedido a la mesa correspondiente
+            mesas_dict[mesa_id]["pedidos"].append({
+                "pedidoId": pedido.id,
+                "nombreOrden": pedido.nombreOrden,
+                "fechaPedido": pedido.fecha,
+                "statusPedido": pedido.status,
+                "detalles": detalles_data,
+            })
+        
+        # Convertir el diccionario a lista
+        mesas_data = list(mesas_dict.values())
+
+        return Response({
+            "success": True,
+            "mesasOcupadas": mesas_data
+        }, status=200)        
+
 class agregarProductosAPedido(APIView):
     def post(self, request):
         pedidoId = request.data.get("pedidoId")
@@ -208,8 +278,7 @@ class agregarProductosAPedido(APIView):
             "productosAgregados": productosAgregados,
             "totalProductosAgregados": len(productosAgregados)
         }, status=201)        
-
-        
+     
 class ActualizarStatusDetalle(APIView):
     def post(self, request, detalle_id):
         detalle = DetallePedido.objects.filter(id=detalle_id).first()
@@ -315,7 +384,6 @@ class TotalVentasPorRangoFechas(APIView):
             'totalVentas': float(totalVentas)
         }, status=200)
         
-
 class ActualizarCantidadDetalle(APIView):
     def post(self, request, detalleId):
         detalle = DetallePedido.objects.filter(id=detalleId).select_related('producto', 'pedido').first()
@@ -349,8 +417,7 @@ class ActualizarCantidadDetalle(APIView):
             "nombreOrden": detalle.pedido.nombreOrden,
             "pedidoId": detalle.pedido.id
         }, status=200)
-        
-        
+             
 class EliminarDetallesDePedido(APIView):
     def delete(self, request, pedidoId):
         # Aquí pedidoId es realmente el ID del detalle que quieres eliminar
@@ -383,8 +450,7 @@ class EliminarDetallesDePedido(APIView):
             'success': True,
             'message': f'Se eliminó el detalle: {cantidad} x {producto_nombre} del pedido {pedido_id}.'
         }, status=200)
-        
-        
+           
 class EliminarPedidoCompleto(APIView):
     def delete(self, request, idMesa):
         pedido = Pedido.objects.filter(id=idMesa).select_related('idMesa').first()

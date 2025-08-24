@@ -10,8 +10,9 @@ urlpatterns = [
     path('listarCategorias/', listarCategorias.as_view(), name='listarCategorias'),
     path('eliminarCategoriaMenu/<int:id>/', eliminarCategoriaMenu.as_view(), name='eliminarCategoriaMenu'),
     path('actualizarOrdenCategoriaMenu/<int:idCategoriaMenu>/', actualizarOrdenCategoriaMenu.as_view(), name='actualizarOrdenCategoriaMenu'),
-
-
+    path('obtenerTotalPorTodasCategorias/', obtenerTotalesVentasReales.as_view(), name='obtenerTotalPorTodasCategorias'),
+    
+    
     #MENU
     path('crearMenu/', CrearMenu.as_view(), name='CrearMenu'),
     path('eliminarMenu/<int:id>/', eliminarMenu.as_view(), name='EliminarMenu'),

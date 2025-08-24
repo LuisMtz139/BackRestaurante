@@ -2,8 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from menu.manager import ProcesosMenu
 from menu.models import  *
-from django.db.models import Q
 import base64
+from django.db.models import Sum, Q, F
+from datetime import datetime
+
+from ordenes.models import *
+
 
 #categoria menu
 class CrearCategoriaMenu(APIView):
@@ -113,6 +117,92 @@ class actualizarOrdenCategoriaMenu(APIView):
             }
         }, status=200)
 
+class obtenerTotalesVentasReales(APIView):
+    def get(self, request):
+        # Solo recibir UNA fecha específica
+        fecha = request.GET.get('fecha')  # Solo 'fecha', no rango
+        
+        if not fecha:
+            return Response({'error': 'El parámetro fecha es requerido (formato: YYYY-MM-DD)'}, status=400)
+        
+        try:
+            fecha_parsed = datetime.strptime(fecha, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}, status=400)
+        
+        # Filtro para UN DÍA ESPECÍFICO únicamente
+        detalles_base = DetallePedido.objects.filter(
+            pedido__fecha__date=fecha_parsed,  # Solo ESE día exacto
+            pedido__status='completado',
+            status='pagado'  # Solo productos pagados, no cancelados
+        )
+        
+        if not detalles_base.exists():
+            return Response({
+                'menuPrincipal': 0,
+                'desechables': 0,
+                'pan': 0,
+                'extras': 0,
+                'bebidas': 0,
+                'postres': 0,
+                'totalGeneral': 0
+            }, status=200)
+        
+        # Categorías principales
+        categorias_principales = [1, 3, 7, 8]
+        
+        # Calcular totales reales (cantidad × precio)
+        total_principales = detalles_base.filter(
+            producto__categoria_id__in=categorias_principales
+        ).aggregate(
+            total=Sum(F('cantidad') * F('producto__precio'))
+        )['total'] or 0
+        
+        total_desechables = detalles_base.filter(
+            producto_id=60
+        ).aggregate(
+            total=Sum(F('cantidad') * F('producto__precio'))
+        )['total'] or 0
+        
+        total_pan = detalles_base.filter(
+            producto_id=58
+        ).aggregate(
+            total=Sum(F('cantidad') * F('producto__precio'))
+        )['total'] or 0
+        
+        productos_excluir = [58, 60]
+        total_extras = detalles_base.filter(
+            producto__categoria__nombreCategoria='EXTRAS'
+        ).exclude(
+            producto_id__in=productos_excluir
+        ).aggregate(
+            total=Sum(F('cantidad') * F('producto__precio'))
+        )['total'] or 0
+        
+        total_bebidas = detalles_base.filter(
+            producto__categoria__nombreCategoria='BEBIDAS'
+        ).aggregate(
+            total=Sum(F('cantidad') * F('producto__precio'))
+        )['total'] or 0
+        
+        total_postres = detalles_base.filter(
+            producto__categoria__nombreCategoria='POSTRES'
+        ).aggregate(
+            total=Sum(F('cantidad') * F('producto__precio'))
+        )['total'] or 0
+        
+        total_general = total_principales + total_desechables + total_pan + total_extras + total_bebidas + total_postres
+        
+        return Response({
+            'menuPrincipal': total_principales,
+            'desechables': total_desechables,
+            'pan': total_pan,
+            'extras': total_extras,
+            'bebidas': total_bebidas,
+            'postres': total_postres,
+            'totalGeneral': total_general
+        }, status=200)    
+        
 # Menu
 class CrearMenu(APIView):
     def post(self, request):
