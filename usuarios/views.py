@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from usuarios.models import Usuario
 
 
+
 class CrearUsuario(APIView):
 	def post(self, request):
 		nombre = request.data.get('nombre')
