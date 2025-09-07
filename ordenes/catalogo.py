@@ -1,5 +1,5 @@
 STATUS_CHOICES = [
-    ('proceso', 'En proceso'),
-    ('completado', 'Completado'),
-    ('cancelado', 'Cancelado'),
+	('proceso', 'En proceso'),
+	('completado', 'Completado'),
+	('cancelado', 'Cancelado'),
 ]

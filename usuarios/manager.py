@@ -4,6 +4,6 @@ from django.db import connection
 
 
 class procesoUsuario(models.Manager):
-    
-    def crearUsuario():
-        pass
+	
+	def crearUsuario():
+		pass
