@@ -1,2 +1,7 @@
 # Entorno virtual de Python
 venv/
+
+*.pyc
+
+# Ignorar directorios __pycache__
+__pycache__/

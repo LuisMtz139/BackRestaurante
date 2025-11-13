@@ -7,6 +7,8 @@ from ordenes.models import Pedido
 from django.utils import timezone
 import pytz
 from django.db import transaction
+from collections import defaultdict
+
 
 
 class crearOrden(APIView):
@@ -98,6 +100,26 @@ class obtenerListaPedidosPendientes(APIView):
 			"success": True,
 			"pedidosPorMesa": pedidosPorMesa
 		}, status=200)
+  
+class cambiarStatusDetallePedido(APIView):
+	def post(self, request):
+		print(request.data)
+		status = request.data['status']
+		detalleId = request.data['detalleId']
+
+		detalle = productoMenu.objects.filter(id=detalleId).first()  
+  
+		if not detalle:
+			return Response({'error': 'Pedido no encontrado'}, status=404)
+
+		print(status)
+		detalle.mostrarEnListado = status
+		detalle.save()
+
+		return Response({
+			'detalleId': detalle.id,
+			'mostrarEnListado': detalle.mostrarEnListado
+		}, status=200)
 		
 class ObtenerTodasLasMesasConProductos(APIView):
 	def get(self, request):
@@ -113,27 +135,49 @@ class ObtenerTodasLasMesasConProductos(APIView):
 			pedidos_data = []
 			for pedido in pedidos_activos:
 				detalles = pedido.detalles.all()
-					
-				detalles_data = []
+				
+				# Agrupar productos por productoId
+				productos_agrupados = defaultdict(lambda: {
+					"cantidad": 0,
+					"precioTotal": 0,
+					"detalleId": None,
+					"productoId": None,
+					"nombreProducto": "",
+					"precioUnitario": 0,
+					"observaciones": "",
+					"statusDetalle": "",
+					"fechaPedido": None,
+					"nombreOrden": "",
+					"pedidoId": None
+				})
+				
 				for detalle in detalles:
-					detalles_data.append({
-						"detalleId": detalle.id,
-						"productoId": detalle.producto.id if detalle.producto else None,
-						"nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
-						"cantidad": detalle.cantidad,
-						"precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
-						"observaciones": detalle.observaciones,
-						"statusDetalle": detalle.status,
-						"fechaPedido": pedido.fecha,
-						"nombreOrden": pedido.nombreOrden,
-						"pedidoId": pedido.id,
-					})
+					producto_id = detalle.producto.id if detalle.producto else None
+					
+					if productos_agrupados[producto_id]["detalleId"] is None:
+						# Primera vez que vemos este producto
+						productos_agrupados[producto_id]["detalleId"] = detalle.id
+						productos_agrupados[producto_id]["productoId"] = producto_id
+						productos_agrupados[producto_id]["nombreProducto"] = detalle.producto.nombre if detalle.producto else "Producto eliminado"
+						productos_agrupados[producto_id]["precioUnitario"] = float(detalle.producto.precio) if detalle.producto else 0
+						productos_agrupados[producto_id]["observaciones"] = detalle.observaciones
+						productos_agrupados[producto_id]["statusDetalle"] = detalle.status
+						productos_agrupados[producto_id]["fechaPedido"] = pedido.fecha
+						productos_agrupados[producto_id]["nombreOrden"] = pedido.nombreOrden
+						productos_agrupados[producto_id]["pedidoId"] = pedido.id
+					
+					# Sumar cantidad y precio
+					productos_agrupados[producto_id]["cantidad"] += detalle.cantidad
+					productos_agrupados[producto_id]["precioTotal"] += float(detalle.producto.precio) * detalle.cantidad if detalle.producto else 0
+				
+				# Convertir a lista
+				detalles_data = list(productos_agrupados.values())
 				
 				pedidos_data.append({
 					"pedidoId": pedido.id,
 					"nombreOrden": pedido.nombreOrden,
 					"fechaPedido": pedido.fecha,
-					"statusPedido": pedido.status,  # Nuevo campo
+					"statusPedido": pedido.status,
 					"detalles": detalles_data,
 				})
 			

@@ -14,6 +14,8 @@ urlpatterns = [
 	path('detalle/<int:detalleId>/actualizarCantidad/', ActualizarCantidadDetalle.as_view(), name='actualizar_cantidad_detalle'),
 	path('pedido/<int:pedidoId>/detalles/eliminar/', EliminarDetallesDePedido.as_view(), name='eliminar_detalles_pedido'),
 	path('<int:idMesa>/eliminarPedido/', EliminarPedidoCompleto.as_view(), name='eliminar_pedido_completo'),
-	path('ObtenerHistorialVentasPorDia/', ObtenerHistorialVentasPorDia.as_view(), name='obtener_historial_ventas_por_dia')
+	path('ObtenerHistorialVentasPorDia/', ObtenerHistorialVentasPorDia.as_view(), name='obtener_historial_ventas_por_dia'),
+	path('cambiarStatusDetallePedido/', cambiarStatusDetallePedido.as_view(), name='cambiar_status_detalle_pedido'),
+
 
 ]
