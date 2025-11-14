@@ -410,6 +410,7 @@ class listarTodoMenu(APIView):
 				'tiempoPreparacion': producto.tiempoPreparacion,
 				'imagen': producto.imagen,
 				'categoria': producto.categoria.nombreCategoria if producto.categoria else None,
+				'mostrarEnListado': producto.mostrarEnListado,
 			})
 		return Response(serializer, status=200)
 
