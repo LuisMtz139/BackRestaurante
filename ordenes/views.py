@@ -60,31 +60,42 @@ class crearOrden(APIView):
 			
 class obtenerListaPedidosPendientes(APIView):
 	def get(self, request):
-		pedidos = Pedido.objects.all().order_by('fecha')  # Trae todos los pedidos, puedes filtrar por mesa si necesitas
+		pedidos = Pedido.objects.all().order_by('fecha')
 		pedidosPorMesa = []
+		
 		for pedido in pedidos:
 			mesa = pedido.idMesa
-			detalles = pedido.detalles.filter(status="proceso")  # Solo detalles pendientes
+			
+			# Filtra por status Y por mostrarEnListado del producto
+			detalles = pedido.detalles.filter(
+				status="proceso",
+				producto__mostrarEnListado=True
+			)
+			
 			listaDetalles = []
 			for detalle in detalles:
 				listaDetalles.append({
-					"detalleId": detalle.id,  # <--- Aquí agregas el id único del detalle del pedido
+					"detalleId": detalle.id,
 					"productoId": detalle.producto.id if detalle.producto else None,
 					"nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
 					"cantidad": detalle.cantidad,
 					"observaciones": detalle.observaciones,
 					"status": detalle.status,
+					"mostrarEnListado": detalle.producto.mostrarEnListado if detalle.producto else False  # 👈 AGREGADO
 				})
+			
 			if not listaDetalles:
-				continue  # Si no hay detalles pendientes, no mostrar el pedido
-
+				continue
+			
 			pedidoInfo = {
 				"pedidoId": pedido.id,
 				"nombreOrden": pedido.nombreOrden,
 				"fecha": pedido.fecha,
 				"detalles": listaDetalles
 			}
+			
 			mesaExistente = next((m for m in pedidosPorMesa if m["numeroMesa"] == mesa.numeroMesa), None)
+			
 			if not mesaExistente:
 				pedidosPorMesa.append({
 					"numeroMesa": mesa.numeroMesa,
@@ -95,7 +106,7 @@ class obtenerListaPedidosPendientes(APIView):
 		
 		if not pedidosPorMesa:
 			return Response({"message": "No hay pedidos pendientes"}, status=200)
-
+		
 		return Response({
 			"success": True,
 			"pedidosPorMesa": pedidosPorMesa
