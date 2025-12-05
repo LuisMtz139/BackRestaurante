@@ -134,6 +134,7 @@ class cambiarStatusDetallePedido(APIView):
 		
 class ObtenerTodasLasMesasConProductos(APIView):
 	def get(self, request):
+     
 		mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
 		mesas_data = []
 		
@@ -142,7 +143,7 @@ class ObtenerTodasLasMesasConProductos(APIView):
 			pedidos_activos = mesa.pedido_set.exclude(
 				status='completado'
 			).order_by('-fecha')
-			
+   			
 			pedidos_data = []
 			for pedido in pedidos_activos:
 				detalles = pedido.detalles.all()
