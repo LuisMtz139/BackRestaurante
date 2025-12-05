@@ -135,7 +135,6 @@ class cambiarStatusDetallePedido(APIView):
 class ObtenerTodasLasMesasConProductos(APIView):
 	def get(self, request):
      
-     
 		mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
 		mesas_data = []
 		
