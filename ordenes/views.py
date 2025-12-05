@@ -163,6 +163,10 @@ class ObtenerTodasLasMesasConProductos(APIView):
 				})
 				
 				for detalle in detalles:
+					# **FILTRAR: Saltar detalles cancelados**
+					if detalle.status == 'cancelado':
+						continue
+					
 					producto_id = detalle.producto.id if detalle.producto else None
 					
 					if productos_agrupados[producto_id]["detalleId"] is None:
@@ -184,13 +188,15 @@ class ObtenerTodasLasMesasConProductos(APIView):
 				# Convertir a lista
 				detalles_data = list(productos_agrupados.values())
 				
-				pedidos_data.append({
-					"pedidoId": pedido.id,
-					"nombreOrden": pedido.nombreOrden,
-					"fechaPedido": pedido.fecha,
-					"statusPedido": pedido.status,
-					"detalles": detalles_data,
-				})
+				# **Solo agregar pedido si tiene detalles (después de filtrar cancelados)**
+				if detalles_data:
+					pedidos_data.append({
+						"pedidoId": pedido.id,
+						"nombreOrden": pedido.nombreOrden,
+						"fechaPedido": pedido.fecha,
+						"statusPedido": pedido.status,
+						"detalles": detalles_data,
+					})
 			
 			# Solo agregar mesa si tiene pedidos activos
 			if pedidos_data:
@@ -204,8 +210,7 @@ class ObtenerTodasLasMesasConProductos(APIView):
 		return Response({
 			"success": True,
 			"mesasOcupadas": mesas_data
-		}, status=200)
-		
+		}, status=200)	
 
 class ObtenerHistorialVentasPorDia(APIView):
 	def get(self, request):
