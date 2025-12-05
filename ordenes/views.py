@@ -138,6 +138,7 @@ class ObtenerTodasLasMesasConProductos(APIView):
 		mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
 		mesas_data = []
 		
+  
 		for mesa in mesas:
 			# Solo pedidos que NO estén completados (proceso o cancelado)
 			pedidos_activos = mesa.pedido_set.exclude(
