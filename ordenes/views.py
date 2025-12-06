@@ -8,7 +8,7 @@ from django.utils import timezone
 import pytz
 from django.db import transaction
 from collections import defaultdict
-
+from django.db.models import Sum
 
 
 class crearOrden(APIView):
@@ -134,12 +134,15 @@ class cambiarStatusDetallePedido(APIView):
 		
 class ObtenerTodasLasMesasConProductos(APIView):
 	def get(self, request):
-     
 		mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
 		mesas_data = []
 		
 		for mesa in mesas:
+<<<<<<< HEAD
 			# Solo pedidos que NO estén completados NI cancelados
+=======
+			# Solo pedidos que NO estén completados
+>>>>>>> adbd25cb7262863427daf460c50227b47b8c7cf9
 			pedidos_activos = mesa.pedido_set.exclude(
 				status__in=['completado', 'cancelado']
 			).order_by('-fecha')
@@ -164,7 +167,7 @@ class ObtenerTodasLasMesasConProductos(APIView):
 				})
 				
 				for detalle in detalles:
-					# **FILTRAR: Saltar detalles cancelados**
+					# Filtrar detalles cancelados
 					if detalle.status == 'cancelado':
 						continue
 					
@@ -189,7 +192,7 @@ class ObtenerTodasLasMesasConProductos(APIView):
 				# Convertir a lista
 				detalles_data = list(productos_agrupados.values())
 				
-				# **Solo agregar pedido si tiene detalles (después de filtrar cancelados)**
+				# Solo agregar pedido si tiene detalles (después de filtrar cancelados)
 				if detalles_data:
 					pedidos_data.append({
 						"pedidoId": pedido.id,
@@ -211,7 +214,7 @@ class ObtenerTodasLasMesasConProductos(APIView):
 		return Response({
 			"success": True,
 			"mesasOcupadas": mesas_data
-		}, status=200)	
+		}, status=200)
 
 class ObtenerHistorialVentasPorDia(APIView):
 	def get(self, request):
@@ -463,29 +466,42 @@ class ActualizarCantidadDetalle(APIView):
 		if not detalle:
 			return Response({"error": "DetallePedido no encontrado"}, status=404)
 
-		nueva_cantidad = request.data.get("cantidad")
-		if nueva_cantidad is None:
+		cantidad_adicional = request.data.get("cantidad")
+		if cantidad_adicional is None:
 			return Response({"error": "El campo 'cantidad' es obligatorio"}, status=400)
 
-		if not str(nueva_cantidad).isdigit():
+		if not str(cantidad_adicional).isdigit():
 			return Response({"error": "La cantidad debe ser un número entero"}, status=400)
 
-		nueva_cantidad = int(nueva_cantidad)
-		if nueva_cantidad <= 0:
+		cantidad_adicional = int(cantidad_adicional)
+		if cantidad_adicional <= 0:
 			return Response({"error": "La cantidad debe ser mayor a 0"}, status=400)
 
-		detalle.cantidad = nueva_cantidad
-		detalle.save()
+		# Crear nuevo detalle con la cantidad adicional
+		nuevo_detalle = DetallePedido.objects.create(
+			pedido=detalle.pedido,
+			producto=detalle.producto,
+			cantidad=cantidad_adicional,
+			observaciones=detalle.observaciones,
+			status='proceso'
+		)
+
+		# Calcular cantidad total acumulada del producto en este pedido
+		cantidad_total = DetallePedido.objects.filter(
+			pedido=detalle.pedido,
+			producto=detalle.producto
+		).aggregate(total=Sum('cantidad'))['total'] or 0
 
 		return Response({
 			"success": True,
-			"detalleId": detalle.id,
-			"productoId": detalle.producto.id if detalle.producto else None,
-			"nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
-			"cantidad": detalle.cantidad,
-			"precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
-			"observaciones": detalle.observaciones,
-			"statusDetalle": detalle.status,
+			"detalleId": nuevo_detalle.id,
+			"productoId": nuevo_detalle.producto.id if nuevo_detalle.producto else None,
+			"nombreProducto": nuevo_detalle.producto.nombre if nuevo_detalle.producto else "Producto eliminado",
+			"cantidad": nuevo_detalle.cantidad,
+			"cantidadTotal": cantidad_total,
+			"precioUnitario": float(nuevo_detalle.producto.precio) if nuevo_detalle.producto else 0,
+			"observaciones": nuevo_detalle.observaciones,
+			"statusDetalle": nuevo_detalle.status,
 			"fechaPedido": detalle.pedido.fecha,
 			"nombreOrden": detalle.pedido.nombreOrden,
 			"pedidoId": detalle.pedido.id
