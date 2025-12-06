@@ -138,13 +138,9 @@ class ObtenerTodasLasMesasConProductos(APIView):
 		mesas_data = []
 		
 		for mesa in mesas:
-<<<<<<< HEAD
-			# Solo pedidos que NO estén completados NI cancelados
-=======
 			# Solo pedidos que NO estén completados
->>>>>>> adbd25cb7262863427daf460c50227b47b8c7cf9
 			pedidos_activos = mesa.pedido_set.exclude(
-				status__in=['completado', 'cancelado']
+				status='completado'
 			).order_by('-fecha')
    			
 			pedidos_data = []
