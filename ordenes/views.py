@@ -462,47 +462,115 @@ class ActualizarCantidadDetalle(APIView):
 		if not detalle:
 			return Response({"error": "DetallePedido no encontrado"}, status=404)
 
-		cantidad_adicional = request.data.get("cantidad")
-		if cantidad_adicional is None:
+		cantidad_cambio = request.data.get("cantidad")
+		if cantidad_cambio is None:
 			return Response({"error": "El campo 'cantidad' es obligatorio"}, status=400)
 
-		if not str(cantidad_adicional).isdigit():
+		try:
+			cantidad_cambio = int(cantidad_cambio)
+		except (ValueError, TypeError):
 			return Response({"error": "La cantidad debe ser un número entero"}, status=400)
 
-		cantidad_adicional = int(cantidad_adicional)
-		if cantidad_adicional <= 0:
-			return Response({"error": "La cantidad debe ser mayor a 0"}, status=400)
+		if cantidad_cambio == 0:
+			return Response({"error": "La cantidad no puede ser 0"}, status=400)
 
-		# Crear nuevo detalle con la cantidad adicional
-		nuevo_detalle = DetallePedido.objects.create(
-			pedido=detalle.pedido,
-			producto=detalle.producto,
-			cantidad=cantidad_adicional,
-			observaciones=detalle.observaciones,
-			status='proceso'
-		)
-
-		# Calcular cantidad total acumulada del producto en este pedido
-		cantidad_total = DetallePedido.objects.filter(
+		# Calcular cantidad actual del producto en este pedido
+		cantidad_actual = DetallePedido.objects.filter(
 			pedido=detalle.pedido,
 			producto=detalle.producto
 		).aggregate(total=Sum('cantidad'))['total'] or 0
 
-		return Response({
-			"success": True,
-			"detalleId": nuevo_detalle.id,
-			"productoId": nuevo_detalle.producto.id if nuevo_detalle.producto else None,
-			"nombreProducto": nuevo_detalle.producto.nombre if nuevo_detalle.producto else "Producto eliminado",
-			"cantidad": nuevo_detalle.cantidad,
-			"cantidadTotal": cantidad_total,
-			"precioUnitario": float(nuevo_detalle.producto.precio) if nuevo_detalle.producto else 0,
-			"observaciones": nuevo_detalle.observaciones,
-			"statusDetalle": nuevo_detalle.status,
-			"fechaPedido": detalle.pedido.fecha,
-			"nombreOrden": detalle.pedido.nombreOrden,
-			"pedidoId": detalle.pedido.id
-		}, status=200)
+		# CASO 1: Agregar cantidad (positivo)
+		if cantidad_cambio > 0:
+			nuevo_detalle = DetallePedido.objects.create(
+				pedido=detalle.pedido,
+				producto=detalle.producto,
+				cantidad=cantidad_cambio,
+				observaciones=detalle.observaciones,
+				status='proceso'
+			)
+
+			cantidad_total = DetallePedido.objects.filter(
+				pedido=detalle.pedido,
+				producto=detalle.producto
+			).aggregate(total=Sum('cantidad'))['total'] or 0
+
+			return Response({
+				"success": True,
+				"accion": "agregado",
+				"detalleId": nuevo_detalle.id,
+				"productoId": nuevo_detalle.producto.id if nuevo_detalle.producto else None,
+				"nombreProducto": nuevo_detalle.producto.nombre if nuevo_detalle.producto else "Producto eliminado",
+				"cantidad": nuevo_detalle.cantidad,
+				"cantidadTotal": cantidad_total,
+				"precioUnitario": float(nuevo_detalle.producto.precio) if nuevo_detalle.producto else 0,
+				"observaciones": nuevo_detalle.observaciones,
+				"statusDetalle": nuevo_detalle.status,
+				"fechaPedido": detalle.pedido.fecha,
+				"nombreOrden": detalle.pedido.nombreOrden,
+				"pedidoId": detalle.pedido.id
+			}, status=200)
+
+		# CASO 2: Eliminar cantidad (negativo)
+		else:
+			cantidad_a_eliminar = abs(cantidad_cambio)
 			
+			if cantidad_a_eliminar > cantidad_actual:
+				return Response({
+					"error": f"No puedes eliminar {cantidad_a_eliminar} unidades. Solo hay {cantidad_actual} disponibles"
+				}, status=400)
+
+			# Obtener detalles más recientes del producto en este pedido
+			detalles_producto = DetallePedido.objects.filter(
+				pedido=detalle.pedido,
+				producto=detalle.producto
+			).order_by('-id')  # Más recientes primero
+
+			cantidad_restante = cantidad_a_eliminar
+			detalles_eliminados = []
+
+			for det in detalles_producto:
+				if cantidad_restante <= 0:
+					break
+
+				if det.cantidad <= cantidad_restante:
+					# Eliminar el detalle completo
+					cantidad_restante -= det.cantidad
+					detalles_eliminados.append({
+						"detalleId": det.id,
+						"cantidad": det.cantidad
+					})
+					det.delete()
+				else:
+					# Reducir la cantidad del detalle
+					det.cantidad -= cantidad_restante
+					detalles_eliminados.append({
+						"detalleId": det.id,
+						"cantidadReducida": cantidad_restante
+					})
+					det.save()
+					cantidad_restante = 0
+
+			# Calcular cantidad total después de eliminar
+			cantidad_total = DetallePedido.objects.filter(
+				pedido=detalle.pedido,
+				producto=detalle.producto
+			).aggregate(total=Sum('cantidad'))['total'] or 0
+
+			return Response({
+				"success": True,
+				"accion": "eliminado",
+				"productoId": detalle.producto.id if detalle.producto else None,
+				"nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
+				"cantidadEliminada": cantidad_a_eliminar,
+				"cantidadTotal": cantidad_total,
+				"detallesAfectados": detalles_eliminados,
+				"fechaPedido": detalle.pedido.fecha,
+				"nombreOrden": detalle.pedido.nombreOrden,
+				"pedidoId": detalle.pedido.id
+			}, status=200)
+   
+   		
 class EliminarDetallesDePedido(APIView):
 	def delete(self, request, pedidoId):
 		# Aquí pedidoId es realmente el ID del detalle que quieres eliminar
