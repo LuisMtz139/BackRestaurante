@@ -368,6 +368,7 @@ class agregarProductosAPedido(APIView):
 	
 class ActualizarStatusDetalle(APIView):
 	def post(self, request, detalle_id):
+		# Buscar el detalle
 		detalle = DetallePedido.objects.filter(id=detalle_id).first()
 		if not detalle:
 			return Response({'error': 'DetallePedido no encontrado'}, status=404)
@@ -375,14 +376,45 @@ class ActualizarStatusDetalle(APIView):
 		status = request.data.get('status')
 		if not status:
 			return Response({'error': 'El campo status es obligatorio'}, status=400)
+		
+		# Validar que el status sea válido
+		if status not in ['proceso', 'completado', 'cancelado']:
+			return Response({'error': 'Status inválido'}, status=400)
 
-		detalle.status = status
-		detalle.save()
-
+		# Verificar si se debe completar todos los del mismo producto
+		completar_todos = request.data.get('completarTodos', False)
+		
+		pedido = detalle.pedido
+		producto_id = detalle.producto.id if detalle.producto else None
+		
+		if completar_todos and producto_id:
+			# Caso 1: Actualizar TODOS los detalles del mismo producto en el pedido
+			detalles_actualizados = DetallePedido.objects.filter(
+				pedido=pedido,
+				producto_id=producto_id
+			).exclude(status='cancelado').update(status=status)
+			
+			mensaje = f'Se actualizaron {detalles_actualizados} detalles del producto {detalle.producto.nombre}'
+		else:
+			# Caso 2: Solo actualizar el detalle específico
+			detalle.status = status
+			detalle.save()
+			detalles_actualizados = 1
+			mensaje = f'Se actualizó el detalle {detalle_id}'
+		
+		# EL PEDIDO SIEMPRE SE MANTIENE EN "proceso"
+		# No cambiamos el status del pedido automáticamente
+		
 		return Response({
 			'success': True,
 			'detalleId': detalle.id,
-			'nuevoStatus': detalle.status
+			'pedidoId': pedido.id,
+			'mesaId': pedido.idMesa.id,
+			'numeroMesa': pedido.idMesa.numeroMesa,
+			'nuevoStatus': status,
+			'detallesActualizados': detalles_actualizados,
+			'statusPedido': pedido.status,
+			'mensaje': mensaje
 		}, status=200)
 		
 class CompletarYTotalPedido(APIView):
