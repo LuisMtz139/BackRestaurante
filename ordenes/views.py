@@ -520,11 +520,11 @@ class TotalVentasPorRangoFechas(APIView):
 		
 class ActualizarCantidadDetalle(APIView):
 	def post(self, request, detalleId):
-		detalle = DetallePedido.objects.filter(id=detalleId).select_related('producto', 'pedido').first()
+		detalle = DetallePedido. objects.filter(id=detalleId).select_related('producto', 'pedido').first()
 		if not detalle:
 			return Response({"error": "DetallePedido no encontrado"}, status=404)
 
-		cantidad_cambio = request.data.get("cantidad")
+		cantidad_cambio = request.data. get("cantidad")
 		if cantidad_cambio is None:
 			return Response({"error": "El campo 'cantidad' es obligatorio"}, status=400)
 
@@ -544,25 +544,31 @@ class ActualizarCantidadDetalle(APIView):
 
 		# CASO 1: Agregar cantidad (positivo)
 		if cantidad_cambio > 0:
+			# 🔥 Determinar status según mostrarEnListado
+			if detalle.producto and detalle.producto.mostrarEnListado:
+				status_detalle = 'proceso'
+			else: 
+				status_detalle = 'completado'
+			
 			nuevo_detalle = DetallePedido.objects.create(
 				pedido=detalle.pedido,
 				producto=detalle.producto,
 				cantidad=cantidad_cambio,
 				observaciones=detalle.observaciones,
-				status='proceso'
+				status=status_detalle  # 👈 Aquí se aplica la lógica
 			)
 
-			cantidad_total = DetallePedido.objects.filter(
+			cantidad_total = DetallePedido.objects. filter(
 				pedido=detalle.pedido,
 				producto=detalle.producto
 			).aggregate(total=Sum('cantidad'))['total'] or 0
 
 			return Response({
-				"success": True,
-				"accion": "agregado",
+				"success":  True,
+				"accion":  "agregado",
 				"detalleId": nuevo_detalle.id,
-				"productoId": nuevo_detalle.producto.id if nuevo_detalle.producto else None,
-				"nombreProducto": nuevo_detalle.producto.nombre if nuevo_detalle.producto else "Producto eliminado",
+				"productoId": nuevo_detalle.producto.id if nuevo_detalle. producto else None,
+				"nombreProducto": nuevo_detalle. producto.nombre if nuevo_detalle.producto else "Producto eliminado",
 				"cantidad": nuevo_detalle.cantidad,
 				"cantidadTotal": cantidad_total,
 				"precioUnitario": float(nuevo_detalle.producto.precio) if nuevo_detalle.producto else 0,
@@ -570,21 +576,21 @@ class ActualizarCantidadDetalle(APIView):
 				"statusDetalle": nuevo_detalle.status,
 				"fechaPedido": detalle.pedido.fecha,
 				"nombreOrden": detalle.pedido.nombreOrden,
-				"pedidoId": detalle.pedido.id
+				"pedidoId": detalle. pedido.id
 			}, status=200)
 
 		# CASO 2: Eliminar cantidad (negativo)
 		else:
 			cantidad_a_eliminar = abs(cantidad_cambio)
 			
-			if cantidad_a_eliminar > cantidad_actual:
+			if cantidad_a_eliminar > cantidad_actual: 
 				return Response({
 					"error": f"No puedes eliminar {cantidad_a_eliminar} unidades. Solo hay {cantidad_actual} disponibles"
 				}, status=400)
 
 			# Obtener detalles más recientes del producto en este pedido
 			detalles_producto = DetallePedido.objects.filter(
-				pedido=detalle.pedido,
+				pedido=detalle. pedido,
 				producto=detalle.producto
 			).order_by('-id')  # Más recientes primero
 
@@ -599,13 +605,13 @@ class ActualizarCantidadDetalle(APIView):
 					# Eliminar el detalle completo
 					cantidad_restante -= det.cantidad
 					detalles_eliminados.append({
-						"detalleId": det.id,
+						"detalleId":  det.id,
 						"cantidad": det.cantidad
 					})
 					det.delete()
 				else:
 					# Reducir la cantidad del detalle
-					det.cantidad -= cantidad_restante
+					det. cantidad -= cantidad_restante
 					detalles_eliminados.append({
 						"detalleId": det.id,
 						"cantidadReducida": cantidad_restante
@@ -615,7 +621,7 @@ class ActualizarCantidadDetalle(APIView):
 
 			# Calcular cantidad total después de eliminar
 			cantidad_total = DetallePedido.objects.filter(
-				pedido=detalle.pedido,
+				pedido=detalle. pedido,
 				producto=detalle.producto
 			).aggregate(total=Sum('cantidad'))['total'] or 0
 
@@ -623,13 +629,13 @@ class ActualizarCantidadDetalle(APIView):
 				"success": True,
 				"accion": "eliminado",
 				"productoId": detalle.producto.id if detalle.producto else None,
-				"nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
+				"nombreProducto": detalle.producto.nombre if detalle. producto else "Producto eliminado",
 				"cantidadEliminada": cantidad_a_eliminar,
 				"cantidadTotal": cantidad_total,
-				"detallesAfectados": detalles_eliminados,
+				"detallesAfectados":  detalles_eliminados,
 				"fechaPedido": detalle.pedido.fecha,
 				"nombreOrden": detalle.pedido.nombreOrden,
-				"pedidoId": detalle.pedido.id
+				"pedidoId":  detalle.pedido.id
 			}, status=200)
    
    		
