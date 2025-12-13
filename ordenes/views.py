@@ -26,7 +26,7 @@ class crearOrden(APIView):
 		if not mesa:
 			return Response({"error": "La mesa especificada no existe"}, status=400)
 		mesa.status = False
-		mesa.save()
+		mesa. save()
 
 		pedido = Pedido.objects.create(
 			nombreOrden=nombreOrden,
@@ -40,21 +40,29 @@ class crearOrden(APIView):
 			if not productoId:
 				continue
 			# Verifica que el producto exista
-			if not productoMenu.objects.filter(id=productoId).exists():
+			producto_obj = productoMenu.objects.filter(id=productoId).first()
+			if not producto_obj:
 				return Response({"error": f"El producto con ID {productoId} no existe"}, status=400)
+			
+			# 🔥 Determinar status según mostrarEnListado
+			if producto_obj.mostrarEnListado:
+				status_detalle = status  # Usa el status enviado en el request
+			else:
+				status_detalle = "completado"  # Automáticamente completado
+			
 			DetallePedido.objects.create(
 				pedido=pedido,
 				producto_id=productoId,
 				cantidad=cantidad,
 				observaciones=observaciones,
-				status=status 
+				status=status_detalle  # 👈 Aquí se aplica la lógica
 			)
 
 		return Response({
 			"success": True,
 			"pedidoId": pedido.id,
 			"nombreOrden": pedido.nombreOrden,
-			"mesaId": pedido.idMesa_id,
+			"mesaId": pedido. idMesa_id,
 			"productos": productos
 		}, status=201)
 			
