@@ -158,7 +158,8 @@ class ObtenerTodasLasMesasConProductos(APIView):
 					"statusDetalle": "",
 					"fechaPedido": None,
 					"nombreOrden": "",
-					"pedidoId": None
+					"pedidoId": None,
+					"statuses": []  # Lista para acumular todos los estados
 				})
 				
 				for detalle in detalles:
@@ -175,17 +176,32 @@ class ObtenerTodasLasMesasConProductos(APIView):
 						productos_agrupados[producto_id]["nombreProducto"] = detalle.producto.nombre if detalle.producto else "Producto eliminado"
 						productos_agrupados[producto_id]["precioUnitario"] = float(detalle.producto.precio) if detalle.producto else 0
 						productos_agrupados[producto_id]["observaciones"] = detalle.observaciones
-						productos_agrupados[producto_id]["statusDetalle"] = detalle.status
 						productos_agrupados[producto_id]["fechaPedido"] = pedido.fecha
 						productos_agrupados[producto_id]["nombreOrden"] = pedido.nombreOrden
 						productos_agrupados[producto_id]["pedidoId"] = pedido.id
+					
+					# Acumular todos los estados
+					productos_agrupados[producto_id]["statuses"].append(detalle.status)
 					
 					# Sumar cantidad y precio
 					productos_agrupados[producto_id]["cantidad"] += detalle.cantidad
 					productos_agrupados[producto_id]["precioTotal"] += float(detalle.producto.precio) * detalle.cantidad if detalle.producto else 0
 				
-				# Convertir a lista
-				detalles_data = list(productos_agrupados.values())
+				# Determinar el status final y convertir a lista
+				detalles_data = []
+				for producto in productos_agrupados.values():
+					statuses = producto.pop("statuses")  # Remover la lista temporal
+					
+					# Si hay al menos un "proceso" o "pendiente", el status es "proceso"
+					if "proceso" in statuses or "pendiente" in statuses:
+						producto["statusDetalle"] = "proceso"
+					elif all(s == "completado" for s in statuses):
+						producto["statusDetalle"] = "completado"
+					else:
+						# Por si hay otros estados
+						producto["statusDetalle"] = statuses[0]
+					
+					detalles_data.append(producto)
 				
 				# Solo agregar pedido si tiene detalles (después de filtrar cancelados)
 				if detalles_data:
