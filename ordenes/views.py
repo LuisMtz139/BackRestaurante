@@ -318,7 +318,7 @@ class ObtenerHistorialVentasPorDia(APIView):
 		
 class agregarProductosAPedido(APIView):
 	def post(self, request):
-		pedidoId = request.data.get("pedidoId")
+		pedidoId = request. data.get("pedidoId")
 		productos = request.data.get("productos")
 		
 		if not pedidoId or not productos:
@@ -327,7 +327,7 @@ class agregarProductosAPedido(APIView):
 			}, status=400)
 		
 		# Verificar que el pedido existe
-		pedido = Pedido.objects.filter(id=pedidoId).first()
+		pedido = Pedido. objects.filter(id=pedidoId).first()
 		if not pedido:
 			return Response({
 				"error": "El pedido especificado no existe"
@@ -338,16 +338,23 @@ class agregarProductosAPedido(APIView):
 			productoId = producto.get("productoId")
 			cantidad = producto.get("cantidad", 1)
 			observaciones = producto.get("observaciones", "")
-			status = producto.get("status", "proceso")
+			status = producto. get("status", "proceso")
 			
 			if not productoId:
 				continue
 				
 			# Verificar que el producto existe
-			if not productoMenu.objects.filter(id=productoId).exists():
+			producto_obj = productoMenu.objects.filter(id=productoId).first()
+			if not producto_obj:
 				return Response({
 					"error": f"El producto con ID {productoId} no existe"
 				}, status=400)
+			
+			# 🔥 Determinar status según mostrarEnListado
+			if producto_obj.mostrarEnListado:
+				status_detalle = status  # Usa el status enviado en el request
+			else:
+				status_detalle = "completado"  # Automáticamente completado
 			
 			# Crear el nuevo detalle
 			nuevoDetalle = DetallePedido.objects.create(
@@ -355,7 +362,7 @@ class agregarProductosAPedido(APIView):
 				producto_id=productoId,
 				cantidad=cantidad,
 				observaciones=observaciones,
-				status=status
+				status=status_detalle  # 👈 Aquí se aplica la lógica
 			)
 			
 			productosAgregados.append({
@@ -363,16 +370,16 @@ class agregarProductosAPedido(APIView):
 				"productoId": productoId,
 				"cantidad": cantidad,
 				"observaciones": observaciones,
-				"status": status
+				"status": status_detalle  # 👈 Retornar el status correcto
 			})
 		
 		return Response({
-			"success": True,
+			"success":  True,
 			"pedidoId": pedido.id,
 			"nombreOrden": pedido.nombreOrden,
 			"productosAgregados": productosAgregados,
 			"totalProductosAgregados": len(productosAgregados)
-		}, status=201)        
+		}, status=201)     
 	
 class ActualizarStatusDetalle(APIView):
 	def post(self, request, detalle_id):
