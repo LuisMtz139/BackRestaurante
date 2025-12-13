@@ -65,7 +65,6 @@ class obtenerListaPedidosPendientes(APIView):
 		
 		for pedido in pedidos:
 			mesa = pedido.idMesa
-			
 			# Filtra por status Y por mostrarEnListado del producto
 			detalles = pedido.detalles.filter(
 				status="proceso",
