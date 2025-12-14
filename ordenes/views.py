@@ -393,7 +393,7 @@ class ActualizarStatusDetalle(APIView):
 			return Response({'error': 'El campo status es obligatorio'}, status=400)
 		
 		# Validar que el status sea válido
-		if status not in ['proceso', 'completado', 'cancelado']:
+		if status not in ['proceso', 'completado', 'cancelado', 'pagado']:
 			return Response({'error': 'Status inválido'}, status=400)
 
 		# Verificar si se debe completar todos los del mismo producto
