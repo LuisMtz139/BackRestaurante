@@ -117,161 +117,160 @@ class actualizarOrdenCategoriaMenu(APIView):
 		}, status=200)
 
 class obtenerTotalesVentasReales(APIView):
-    def get(self, request):
-        # Solo recibir UNA fecha específica
-        fecha = request.GET.get('fecha')  # Solo 'fecha', no rango
-        
-        if not fecha:
-            return Response({'error': 'El parámetro fecha es requerido (formato: YYYY-MM-DD)'}, status=400)
-        
-        try:
-            fecha_parsed = datetime.strptime(fecha, '%Y-%m-%d').date()
-        except ValueError:
-            return Response({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}, status=400)
-        
-        # Filtro para UN DÍA ESPECÍFICO únicamente
-        detalles_base = DetallePedido.objects.filter(
-            pedido__fecha__date=fecha_parsed,  # Solo ESE día exacto
-            pedido__status='completado',
-            status='pagado'  # Solo productos pagados, no cancelados
-        )
-        
-        if not detalles_base.exists():
-            return Response({
-                'menuPrincipal': {'total': 0, 'cantidad': 0},
-                'desechables': {'total': 0, 'cantidad': 0},
-                'pan': {'total': 0, 'cantidad': 0},
-                'extras': {'total': 0, 'cantidad': 0},
-                'bebidas': {'total': 0, 'cantidad': 0},
-                'cafe': {'total': 0, 'cantidad': 0},
-                'postres': {'total': 0, 'cantidad': 0},
-                'totalGeneral': {'total': 0, 'cantidad': 0}
-            }, status=200)
-        
-        # Categorías principales
-        categorias_principales = [1, 3, 7, 8]
-        
-        # MENU PRINCIPAL - total y cantidad
-        principales_data = detalles_base.filter(
-            producto__categoria_id__in=categorias_principales
-        ).aggregate(
-            total=Sum(F('cantidad') * F('producto__precio')),
-            cantidad=Sum('cantidad')
-        )
-        total_principales = principales_data['total'] or 0
-        cantidad_principales = principales_data['cantidad'] or 0
-        
-        # DESECHABLES - total y cantidad
-        desechables_data = detalles_base.filter(
-            producto_id=60
-        ).aggregate(
-            total=Sum(F('cantidad') * F('producto__precio')),
-            cantidad=Sum('cantidad')
-        )
-        total_desechables = desechables_data['total'] or 0
-        cantidad_desechables = desechables_data['cantidad'] or 0
-        
-        # PAN - total y cantidad
-        pan_data = detalles_base.filter(
-            producto_id=58
-        ).aggregate(
-            total=Sum(F('cantidad') * F('producto__precio')),
-            cantidad=Sum('cantidad')
-        )
-        total_pan = pan_data['total'] or 0
-        cantidad_pan = pan_data['cantidad'] or 0
-        
-        # EXTRAS - total y cantidad (excluyendo pan y desechables)
-        productos_excluir = [58, 60]
-        extras_data = detalles_base.filter(
-            producto__categoria__nombreCategoria='EXTRAS'
-        ).exclude(
-            producto_id__in=productos_excluir
-        ).aggregate(
-            total=Sum(F('cantidad') * F('producto__precio')),
-            cantidad=Sum('cantidad')
-        )
-        total_extras = extras_data['total'] or 0
-        cantidad_extras = extras_data['cantidad'] or 0
-        
-        # BEBIDAS (INCLUYENDO NATURALES) SIN CAFÉ - total y cantidad
-        bebidas_data = detalles_base.filter(
-            producto__categoria__nombreCategoria__in=['BEBIDAS', 'NATURALES']  # Incluir BEBIDAS y NATURALES
-        ).exclude(
-            producto_id=39  # Excluir café
-        ).aggregate(
-            total=Sum(F('cantidad') * F('producto__precio')),
-            cantidad=Sum('cantidad')
-        )
-        total_bebidas = bebidas_data['total'] or 0
-        cantidad_bebidas = bebidas_data['cantidad'] or 0
-        
-        # CAFÉ - total y cantidad
-        cafe_data = detalles_base.filter(
-            producto_id=39  # Solo café
-        ).aggregate(
-            total=Sum(F('cantidad') * F('producto__precio')),
-            cantidad=Sum('cantidad')
-        )
-        total_cafe = cafe_data['total'] or 0
-        cantidad_cafe = cafe_data['cantidad'] or 0
-        
-        # POSTRES - total y cantidad
-        postres_data = detalles_base.filter(
-            producto__categoria__nombreCategoria='POSTRES'
-        ).aggregate(
-            total=Sum(F('cantidad') * F('producto__precio')),
-            cantidad=Sum('cantidad')
-        )
-        total_postres = postres_data['total'] or 0
-        cantidad_postres = postres_data['cantidad'] or 0
-        
-        # TOTALES GENERALES
-        total_general = (
-            total_principales + total_desechables + total_pan +
-            total_extras + total_bebidas + total_cafe + total_postres
-        )
-        cantidad_general = (
-            cantidad_principales + cantidad_desechables + cantidad_pan +
-            cantidad_extras + cantidad_bebidas + cantidad_cafe + cantidad_postres
-        )
-        
-        return Response({
-            'menuPrincipal': {
-                'total': total_principales,
-                'cantidad': cantidad_principales
-            },
-            'desechables': {
-                'total': total_desechables,
-                'cantidad': cantidad_desechables
-            },
-            'pan': {
-                'total': total_pan,
-                'cantidad': cantidad_pan
-            },
-            'extras': {
-                'total': total_extras,
-                'cantidad': cantidad_extras
-            },
-            'bebidas': {
-                'total': total_bebidas,
-                'cantidad': cantidad_bebidas
-            },
-            'cafe': {
-                'total': total_cafe,
-                'cantidad': cantidad_cafe
-            },
-            'postres': {
-                'total': total_postres,
-                'cantidad': cantidad_postres
-            },
-            'totalGeneral': {
-                'total': total_general,
-                'cantidad': cantidad_general
-            }
-        }, status=200)
-        
-        
+	def get(self, request):
+		# Solo recibir UNA fecha específica
+		fecha = request.GET.get('fecha')  # Solo 'fecha', no rango
+		if not fecha:
+			return Response({'error': 'El parámetro fecha es requerido (formato: YYYY-MM-DD)'}, status=400)
+		
+		try:
+			fecha_parsed = datetime.strptime(fecha, '%Y-%m-%d').date()
+		except ValueError:
+			return Response({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}, status=400)
+		
+		# Filtro para UN DÍA ESPECÍFICO únicamente
+		detalles_base = DetallePedido.objects.filter(
+			pedido__fecha__date=fecha_parsed,  # Solo ESE día exacto
+			pedido__status='completado',
+			status='pagado'  # Solo productos pagados, no cancelados
+		)
+		
+		if not detalles_base.exists():
+			return Response({
+				'menuPrincipal': {'total': 0, 'cantidad': 0},
+				'desechables': {'total': 0, 'cantidad': 0},
+				'pan': {'total': 0, 'cantidad': 0},
+				'extras': {'total': 0, 'cantidad': 0},
+				'bebidas': {'total': 0, 'cantidad': 0},
+				'cafe': {'total': 0, 'cantidad': 0},
+				'postres': {'total': 0, 'cantidad': 0},
+				'totalGeneral': {'total': 0, 'cantidad': 0}
+			}, status=200)
+		
+		# Categorías principales
+		categorias_principales = [1, 3, 7, 8]
+		
+		# MENU PRINCIPAL - total y cantidad
+		principales_data = detalles_base.filter(
+			producto__categoria_id__in=categorias_principales
+		).aggregate(
+			total=Sum(F('cantidad') * F('producto__precio')),
+			cantidad=Sum('cantidad')
+		)
+		total_principales = principales_data['total'] or 0
+		cantidad_principales = principales_data['cantidad'] or 0
+		
+		# DESECHABLES - total y cantidad
+		desechables_data = detalles_base.filter(
+			producto_id=60
+		).aggregate(
+			total=Sum(F('cantidad') * F('producto__precio')),
+			cantidad=Sum('cantidad')
+		)
+		total_desechables = desechables_data['total'] or 0
+		cantidad_desechables = desechables_data['cantidad'] or 0
+		
+		# PAN - total y cantidad
+		pan_data = detalles_base.filter(
+			producto_id=58
+		).aggregate(
+			total=Sum(F('cantidad') * F('producto__precio')),
+			cantidad=Sum('cantidad')
+		)
+		total_pan = pan_data['total'] or 0
+		cantidad_pan = pan_data['cantidad'] or 0
+		
+		# EXTRAS - total y cantidad (excluyendo pan y desechables)
+		productos_excluir = [58, 60]
+		extras_data = detalles_base.filter(
+			producto__categoria__nombreCategoria='EXTRAS'
+		).exclude(
+			producto_id__in=productos_excluir
+		).aggregate(
+			total=Sum(F('cantidad') * F('producto__precio')),
+			cantidad=Sum('cantidad')
+		)
+		total_extras = extras_data['total'] or 0
+		cantidad_extras = extras_data['cantidad'] or 0
+		
+		# BEBIDAS (INCLUYENDO NATURALES) SIN CAFÉ - total y cantidad
+		bebidas_data = detalles_base.filter(
+			producto__categoria__nombreCategoria__in=['BEBIDAS', 'NATURALES']  # Incluir BEBIDAS y NATURALES
+		).exclude(
+			producto_id=39  # Excluir café
+		).aggregate(
+			total=Sum(F('cantidad') * F('producto__precio')),
+			cantidad=Sum('cantidad')
+		)
+		total_bebidas = bebidas_data['total'] or 0
+		cantidad_bebidas = bebidas_data['cantidad'] or 0
+		
+		# CAFÉ - total y cantidad
+		cafe_data = detalles_base.filter(
+			producto_id=39  # Solo café
+		).aggregate(
+			total=Sum(F('cantidad') * F('producto__precio')),
+			cantidad=Sum('cantidad')
+		)
+		total_cafe = cafe_data['total'] or 0
+		cantidad_cafe = cafe_data['cantidad'] or 0
+		
+		# POSTRES - total y cantidad
+		postres_data = detalles_base.filter(
+			producto__categoria__nombreCategoria='POSTRES'
+		).aggregate(
+			total=Sum(F('cantidad') * F('producto__precio')),
+			cantidad=Sum('cantidad')
+		)
+		total_postres = postres_data['total'] or 0
+		cantidad_postres = postres_data['cantidad'] or 0
+		
+		# TOTALES GENERALES
+		total_general = (
+			total_principales + total_desechables + total_pan +
+			total_extras + total_bebidas + total_cafe + total_postres
+		)
+		cantidad_general = (
+			cantidad_principales + cantidad_desechables + cantidad_pan +
+			cantidad_extras + cantidad_bebidas + cantidad_cafe + cantidad_postres
+		)
+		
+		return Response({
+			'menuPrincipal': {
+				'total': total_principales,
+				'cantidad': cantidad_principales
+			},
+			'desechables': {
+				'total': total_desechables,
+				'cantidad': cantidad_desechables
+			},
+			'pan': {
+				'total': total_pan,
+				'cantidad': cantidad_pan
+			},
+			'extras': {
+				'total': total_extras,
+				'cantidad': cantidad_extras
+			},
+			'bebidas': {
+				'total': total_bebidas,
+				'cantidad': cantidad_bebidas
+			},
+			'cafe': {
+				'total': total_cafe,
+				'cantidad': cantidad_cafe
+			},
+			'postres': {
+				'total': total_postres,
+				'cantidad': cantidad_postres
+			},
+			'totalGeneral': {
+				'total': total_general,
+				'cantidad': cantidad_general
+			}
+		}, status=200)
+		
+		
 # Menu
 class CrearMenu(APIView):
 	def post(self, request):
