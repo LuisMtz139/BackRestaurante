@@ -7,6 +7,7 @@ urlpatterns = [
 	path('obtenerListaPedidosPendientes/', obtenerListaPedidosPendientes.as_view(), name='obtener_lista_pedidos_pendientes'),
 	path('obtenerMesasConPedidosAbiertos/', ObtenerTodasLasMesasConProductos.as_view(), name='obtener_pedidos_por_mesa'),
 	path('actualizarStatusorden/<int:detalle_id>/', ActualizarStatusDetalle.as_view(), name='actualizar_status_orden'),
+	path('actualizarStatusorden/', ActualizarStatusDetalle.as_view(), name='actualizar_status_orden_multiple'),
 	path('agregarProductosAPedido/', agregarProductosAPedido.as_view(), name='agregar_productos_a_pedido'),
 	path('CompletarYTotalPedido/<int:pedido_id>/', CompletarYTotalPedido.as_view(), name='completar_y_total_pedido'),
 	path('ObtenerTodosPedidosOrdenes/', obtenerTodosPedidosOrdenes.as_view(), name='obtener_todos_pedidos_ordenes'),

@@ -381,13 +381,9 @@ class agregarProductosAPedido(APIView):
 			"totalProductosAgregados": len(productosAgregados)
 		}, status=201)     
 	
+ 
 class ActualizarStatusDetalle(APIView):
-	def post(self, request, detalle_id):
-		# Buscar el detalle
-		detalle = DetallePedido.objects.filter(id=detalle_id).first()
-		if not detalle:
-			return Response({'error': 'DetallePedido no encontrado'}, status=404)
-
+	def post(self, request, detalle_id=None):
 		status = request.data.get('status')
 		if not status:
 			return Response({'error': 'El campo status es obligatorio'}, status=400)
@@ -396,8 +392,53 @@ class ActualizarStatusDetalle(APIView):
 		if status not in ['proceso', 'completado', 'cancelado', 'pagado']:
 			return Response({'error': 'Status inválido'}, status=400)
 
-		# Verificar si se debe completar todos los del mismo producto
+		# Verificar si se envió un array de IDs en el JSON
+		id_detalle_array = request.data.get('idDetalle', [])
 		completar_todos = request.data.get('completarTodos', False)
+		
+		# Si se envió idDetalle como array, usar esos IDs
+		if id_detalle_array and isinstance(id_detalle_array, list):
+			# Caso múltiples detalles
+			detalles = DetallePedido.objects.filter(id__in=id_detalle_array)
+			
+			if not detalles.exists():
+				return Response({'error': 'No se encontraron los detalles especificados'}, status=404)
+			
+			# Actualizar todos los detalles del array
+			detalles_actualizados_count = 0
+			pedido = None
+			
+			for detalle in detalles:
+				if detalle.status != 'cancelado':
+					detalle.status = status
+					detalle.save()
+					detalles_actualizados_count += 1
+					if not pedido:
+						pedido = detalle.pedido
+			
+			if not pedido:
+				return Response({'error': 'No hay detalles válidos para actualizar'}, status=404)
+			
+			return Response({
+				'success': True,
+				'idsActualizados': id_detalle_array,
+				'pedidoId': pedido.id,
+				'mesaId': pedido.idMesa.id,
+				'numeroMesa': pedido.idMesa.numeroMesa,
+				'nuevoStatus': status,
+				'detallesActualizados': detalles_actualizados_count,
+				'statusPedido': pedido.status,
+				'mensaje': f'Se actualizaron {detalles_actualizados_count} detalles'
+			}, status=200)
+		
+		# Si no se envió array, usar el detalle_id de la URL (comportamiento original)
+		if not detalle_id:
+			return Response({'error': 'Debe proporcionar detalle_id en la URL o idDetalle en el JSON'}, status=400)
+		
+		# Buscar el detalle
+		detalle = DetallePedido.objects.filter(id=detalle_id).first()
+		if not detalle:
+			return Response({'error': 'DetallePedido no encontrado'}, status=404)
 		
 		pedido = detalle.pedido
 		producto_id = detalle.producto.id if detalle.producto else None
