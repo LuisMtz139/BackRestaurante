@@ -257,9 +257,6 @@ class CrearMenu(APIView):
 		categoriaId = request.POST.get('categoriaId')
 		idCategoriasMetricas = request.POST.get('idCategoriasMetricas')
 
-		if not idCategoriasMetricas or nombre or descripcion or precio or tiempoPreparacion or categoriaId:
-			return Response({'result': 'faltan datos'}, status=400)
-
 		imagen_file = request.FILES.get('imagen')
 		if imagen_file is not None:
 			imagen = base64.b64encode(imagen_file.read()).decode()
