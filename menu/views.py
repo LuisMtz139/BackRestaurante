@@ -395,7 +395,7 @@ class listarMenuPorCategoria(APIView):
 class listarTodoMenu(APIView):
 	def get(self, request):
 		productos = productoMenu.objects.listarTodoMenu()
-		
+
 		if not productos:
 			return Response('No hay productos disponibles', status=404)
 		
@@ -410,6 +410,8 @@ class listarTodoMenu(APIView):
 				'imagen': producto.imagen,
 				'categoria': producto.categoria.nombreCategoria if producto.categoria else None,
 				'mostrarEnListado': producto.mostrarEnListado,
+				'categoriaMetricaNombre': producto.categoriaMetrica.nombreCategoria if producto.categoriaMetrica else None,
+				'categoriaMetricaId': producto.categoriaMetrica.id if producto.categoriaMetrica else None,
 			})
 		return Response(serializer, status=200)
 
