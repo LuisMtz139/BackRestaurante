@@ -406,6 +406,7 @@ class listarTodoMenu(APIView):
 				'tiempoPreparacion': producto.tiempoPreparacion,
 				'imagen': producto.imagen,
 				'categoria': producto.categoria.nombreCategoria if producto.categoria else None,
+				'idCategoria': producto.categoria.id if producto.categoria else None,
 				'mostrarEnListado': producto.mostrarEnListado,
 				'categoriaMetricaNombre': producto.categoriaMetrica.nombreCategoria if producto.categoriaMetrica else None,
 				'categoriaMetricaId': producto.categoriaMetrica.id if producto.categoriaMetrica else None,
