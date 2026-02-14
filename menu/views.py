@@ -8,6 +8,67 @@ from datetime import datetime
 from ordenes.models import *
 
 
+#categoriaMetricas
+class ListarCategoriaMetricas(APIView):
+	def get(self, request):
+		categorias = categoriaMetricas.objects.filter(status=True).order_by('id')
+		
+		if not categorias.exists():
+			return Response({'error': 'No hay categorías métricas configuradas'}, status=400)
+		
+		response_data = []
+		for cat_metrica in categorias:
+			response_data.append({
+				'id': cat_metrica.id,
+				'nombreCategoria': cat_metrica.nombreCategoria
+			})
+		
+		return Response(response_data, status=200)
+
+class CrearCategoriaMetricas(APIView):
+    def post(self, request):
+        nombreCategoria = request.data['nombreCategoria']
+        
+        if not nombreCategoria:
+            return Response('Nombre no asigando')
+        
+        categoria = categoriaMetricas.objects.create( nombreCategoria=nombreCategoria)
+	
+        return Response({
+            'id': categoria.id,
+            'nombreCategoria': categoria.nombreCategoria,
+        }, status=201)
+        
+class ModificarCategoriaMetricas(APIView):
+	def put(self, request, id):
+		nombreCategoria = request.data.get('nombreCategoria')
+		if not nombreCategoria:
+			return Response('Nombre no asigando')
+		
+		categoria = categoriaMetricas.objects.filter(id=id).first()
+		if not categoria:
+			return Response('Categoría no encontrada')
+		
+		categoria.nombreCategoria = nombreCategoria
+		categoria.save()
+		
+		return Response({
+			'id': categoria.id,
+			'nombreCategoria': categoria.nombreCategoria,
+		}, status=200)
+  
+class EliminarCategoriaMetricas(APIView):
+	def delete(self, request, id):
+		if not id:
+			return Response({'error': 'El ID es obligatorio'}, status=400)
+		
+		categoria = categoriaMetricas.objects.filter(id=id).first()
+		if not categoria:
+			return Response({'error': 'Categoría no encontrada'}, status=404)
+
+		categoria.delete()
+		return Response({'mensaje': 'Categoría eliminada correctamente'}, status=200)
+
 #categoria menu
 class CrearCategoriaMenu(APIView):
 	def post(self, request):
@@ -129,47 +190,13 @@ class obtenerTotalesVentasReales(APIView):
 			return Response({'error': 'Formato de fecha inválido. Use YYYY-MM-DD'}, status=400)
 		
 		# Filtro para UN DÍA ESPECÍFICO únicamente
-		detalles_base = DetallePedido.objects.filter(
-			pedido__fecha__date=fecha_parsed,
-			pedido__status='completado',
-			status='pagado'
-		)
+		detalles_base = DetallePedido.objects.filter( pedido__fecha__date=fecha_parsed, pedido__status='completado', status='pagado' )
 		
 		# Obtener todas las categorías métricas activas
 		categorias_metricas = categoriaMetricas.objects.filter(status=True).order_by('id')
 		
 		if not categorias_metricas.exists():
-			return Response({
-				'error': 'No hay categorías métricas configuradas en el sistema'
-			}, status=500)
-		
-		# Configuración de reglas de negocio por categoría métrica
-		# TODO: Mover esto a una tabla de configuración en el futuro
-		reglas_categorias = {
-			'Menu Principal': {
-				'categorias_ids': [1, 3, 7, 8],  # DESAYUNOS, COMIDAS, etc.
-			},
-			'Desechables': {
-				'productos_ids': [60],
-			},
-			'Pan': {
-				'productos_ids': [58],
-			},
-			'Extras': {
-				'categorias_nombres': ['EXTRAS'],
-				'productos_excluir': [58, 60],  # Excluir pan y desechables
-			},
-			'Bebidas': {
-				'categorias_nombres': ['BEBIDAS', 'NATURALES'],
-				'productos_excluir': [39],  # Excluir café
-			},
-			'Café': {
-				'productos_ids': [39],
-			},
-			'Postres': {
-				'categorias_nombres': ['POSTRES'],
-			},
-		}
+			return Response({'error': 'No hay categorías métricas configuradas'}, status=400)
 		
 		# Preparar respuesta dinámica
 		response_data = {}
@@ -178,44 +205,35 @@ class obtenerTotalesVentasReales(APIView):
 		
 		# Calcular totales para cada categoría métrica
 		for cat_metrica in categorias_metricas:
-			nombre_categoria = cat_metrica.nombreCategoria
-			reglas = reglas_categorias.get(nombre_categoria, {})
+			queryset = detalles_base.filter( producto__categoriaMetrica_id=cat_metrica.id )
 			
-			# Construir el queryset según las reglas
-			queryset = detalles_base
-			
-			# Aplicar filtros por categorías de productos
-			if 'categorias_ids' in reglas:
-				queryset = queryset.filter(producto__categoria_id__in=reglas['categorias_ids'])
-			elif 'categorias_nombres' in reglas:
-				queryset = queryset.filter(producto__categoria__nombreCategoria__in=reglas['categorias_nombres'])
-			
-			# Aplicar filtros por productos específicos
-			if 'productos_ids' in reglas:
-				queryset = queryset.filter(producto_id__in=reglas['productos_ids'])
-			
-			# Aplicar exclusiones
-			if 'productos_excluir' in reglas:
-				queryset = queryset.exclude(producto_id__in=reglas['productos_excluir'])
-			
-			# Calcular totales
-			datos = queryset.aggregate(
-				total=Sum(F('cantidad') * F('producto__precio')),
-				cantidad=Sum('cantidad')
-			)
+			datos = queryset.aggregate( total=Sum(F('cantidad') * F('producto__precio')), cantidad=Sum('cantidad') )
 			
 			total = datos['total'] or 0
 			cantidad = datos['cantidad'] or 0
+
+			nombre = cat_metrica.nombreCategoria
 			
-			# Generar clave para la respuesta (camelCase del nombre)
-			# "Menu Principal" -> "menuPrincipal"
-			# "Café" -> "cafe"
-			clave = nombre_categoria[0].lower() + nombre_categoria[1:].replace(' ', '')
-			clave = clave.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+			# Convertir a camelCase
+			palabras = nombre.split()
+			if len(palabras) > 1:
+				clave = palabras[0].lower() + ''.join(word.capitalize() for word in palabras[1:])
+			else:
+				clave = palabras[0].lower()
+			
+			# Remover acentos
+			clave = (clave
+				.replace('á', 'a').replace('é', 'e').replace('í', 'i')
+				.replace('ó', 'o').replace('ú', 'u').replace('ñ', 'n')
+				.replace('Á', 'A').replace('É', 'E').replace('Í', 'I')
+				.replace('Ó', 'O').replace('Ú', 'U').replace('Ñ', 'N')
+			)
 			
 			response_data[clave] = {
-				'total': total,
-				'cantidad': cantidad
+				'total': float(total),
+				'cantidad': cantidad,
+				'categoria_id': cat_metrica.id,
+				'categoria_nombre': cat_metrica.nombreCategoria
 			}
 			
 			total_general += total
@@ -223,12 +241,11 @@ class obtenerTotalesVentasReales(APIView):
 		
 		# Agregar total general
 		response_data['totalGeneral'] = {
-			'total': total_general,
+			'total': float(total_general),
 			'cantidad': cantidad_general
 		}
 		
-		return Response(response_data, status=200)
-		
+		return Response(response_data, status=200)	
 		
 # Menu
 class CrearMenu(APIView):
@@ -238,6 +255,10 @@ class CrearMenu(APIView):
 		precio = request.POST.get('precio')
 		tiempoPreparacion = request.POST.get('tiempoPreparacion')
 		categoriaId = request.POST.get('categoriaId')
+		idCategoriasMetricas = request.POST.get('idCategoriasMetricas')
+
+		if not idCategoriasMetricas or nombre or descripcion or precio or tiempoPreparacion or categoriaId:
+			return Response({'result': 'faltan datos'}, status=400)
 
 		imagen_file = request.FILES.get('imagen')
 		if imagen_file is not None:
@@ -255,6 +276,10 @@ class CrearMenu(APIView):
 		if not categoria:
 			return Response('Categoría no encontrada', status=404)
 
+		obtenerCategoriaMetrica = categoriaMetricas.objects.filter(id=idCategoriasMetricas).first()
+		if not obtenerCategoriaMetrica:
+			return Response('Categoría métrica no encontrada', status=404)
+		
 		producto = productoMenu.objects.create(
 			nombre=nombre,
 			descripcion=descripcion,
@@ -262,6 +287,7 @@ class CrearMenu(APIView):
 			tiempoPreparacion=tiempoPreparacion,
 			imagen=imagen,
 			categoria=categoria,
+			categoriaMetrica = obtenerCategoriaMetrica
 		)
 
 		return Response({
@@ -272,6 +298,7 @@ class CrearMenu(APIView):
 			'tiempoPreparacion': producto.tiempoPreparacion,
 			'imagen': producto.imagen,
 			'categoria': producto.categoria.nombreCategoria if producto.categoria else None,
+			'categoriaMetrica': producto.categoriaMetrica.nombreCategoria if producto.categoriaMetrica else None,
 		}, status=201)
 			
 class eliminarMenu(APIView):
@@ -299,6 +326,7 @@ class ModificarMenu(APIView):
 		precio = request.POST.get('precio')
 		tiempo_preparacion = request.POST.get('tiempoPreparacion')
 		categoria_id = request.POST.get('categoriaId')
+		categoriaMetrica = request.POST.get('idCategoriasMetricas')	
 
 		imagen_file = request.FILES.get('imagen')
 		if imagen_file is not None:
@@ -323,6 +351,10 @@ class ModificarMenu(APIView):
 			except CategoriaMenu.DoesNotExist:
 				return Response({'error': 'Categoría no encontrada'}, status=404)
 
+		if categoriaMetrica:
+			obtenerCategoriaMetrica = categoriaMetricas.objects.filter(id=categoriaMetrica).first()
+			producto.categoriaMetrica = obtenerCategoriaMetrica
+   
 		producto.save()
 
 		return Response({
@@ -333,6 +365,7 @@ class ModificarMenu(APIView):
 			'tiempoPreparacion': producto.tiempoPreparacion,
 			'imagen': producto.imagen,
 			'categoria': producto.categoria.id if producto.categoria else None,
+			'categoriaMetrica': categoriaMetrica
 		}, status=200)
 		
 class listarMenuPorCategoria(APIView):

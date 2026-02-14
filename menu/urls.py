@@ -3,6 +3,11 @@ from .views import *
 
 
 urlpatterns = [
+	#CrearCategoriaMetricas
+	path('listarCategoriaMetricas/', ListarCategoriaMetricas.as_view(), name='ListarCategoriaMetricas'),
+	path('crearCategoriaMetricas/', CrearCategoriaMetricas.as_view(), name='CrearCategoriaMetricas'),
+	path('modificarCategoriaMetricas/<int:id>/', ModificarCategoriaMetricas.as_view(), name='ModificarCategoriaMetricas'),
+	path('eliminarCategoriaMetricas/<int:id>/', EliminarCategoriaMetricas.as_view(), name='EliminarCategoriaMetricas'),
 	
 	#Crear categorias
 	path('crearCategoriaMenu/', CrearCategoriaMenu.as_view(), name='CrearCategoriaMenu'),
