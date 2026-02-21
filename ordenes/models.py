@@ -23,6 +23,7 @@ class DetallePedido(models.Model):
 	cantidad = models.PositiveIntegerField(default=1)
 	observaciones = models.TextField(blank=True, null=True)
 	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='proceso')
+	fecha = models.DateTimeField(auto_now_add=True)
 	
 	def __str__(self):
 		return f'{self.cantidad} x {self.producto.nombre if self.producto else "Producto eliminado"} (Pedido {self.pedido.id})'

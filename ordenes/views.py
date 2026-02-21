@@ -88,7 +88,8 @@ class obtenerListaPedidosPendientes(APIView):
 					"cantidad": detalle.cantidad,
 					"observaciones": detalle.observaciones,
 					"status": detalle.status,
-					"mostrarEnListado": detalle.producto.mostrarEnListado if detalle.producto else False  # 👈 AGREGADO
+					"mostrarEnListado": detalle.producto.mostrarEnListado if detalle.producto else False,
+					"fecha": detalle.fecha,
 				})
 			
 			if not listaDetalles:
