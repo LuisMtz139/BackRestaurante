@@ -681,6 +681,41 @@ class ActualizarCantidadDetalle(APIView):
 			}, status=200)
    
    		
+class ModificarCantidadDetalle(APIView):
+	def post(self, request, detalleId):
+		detalle = DetallePedido.objects.filter(id=detalleId).select_related('producto', 'pedido').first()
+		if not detalle:
+			return Response({"error": "DetallePedido no encontrado"}, status=404)
+
+		nueva_cantidad = request.data.get("cantidad")
+		if nueva_cantidad is None:
+			return Response({"error": "El campo 'cantidad' es obligatorio"}, status=400)
+
+		try:
+			nueva_cantidad = int(nueva_cantidad)
+		except (ValueError, TypeError):
+			return Response({"error": "La cantidad debe ser un número entero"}, status=400)
+
+		if nueva_cantidad <= 0:
+			return Response({"error": "La cantidad debe ser mayor a 0"}, status=400)
+
+		detalle.cantidad = nueva_cantidad
+		detalle.save()
+
+		return Response({
+			"success": True,
+			"detalleId": detalle.id,
+			"productoId": detalle.producto.id if detalle.producto else None,
+			"nombreProducto": detalle.producto.nombre if detalle.producto else "Producto eliminado",
+			"cantidad": detalle.cantidad,
+			"precioUnitario": float(detalle.producto.precio) if detalle.producto else 0,
+			"observaciones": detalle.observaciones,
+			"statusDetalle": detalle.status,
+			"fechaPedido": detalle.pedido.fecha,
+			"nombreOrden": detalle.pedido.nombreOrden,
+			"pedidoId": detalle.pedido.id
+		}, status=200)
+
 class EliminarDetallesDePedido(APIView):
 	def delete(self, request, pedidoId):
 		# Aquí pedidoId es realmente el ID del detalle que quieres eliminar
