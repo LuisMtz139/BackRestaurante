@@ -18,6 +18,7 @@ urlpatterns = [
 	path('<int:idMesa>/eliminarPedido/', EliminarPedidoCompleto.as_view(), name='eliminar_pedido_completo'),
 	path('ObtenerHistorialVentasPorDia/', ObtenerHistorialVentasPorDia.as_view(), name='obtener_historial_ventas_por_dia'),
 	path('cambiarStatusDetallePedido/', cambiarStatusDetallePedido.as_view(), name='cambiar_status_detalle_pedido'),
+	path('obtenerPedidosPorFecha/', ModificarnombreOrden.as_view(), name='obtener_pedidos_por_fecha'),
 
 
 ]

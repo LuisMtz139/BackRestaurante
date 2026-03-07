@@ -11,6 +11,7 @@ class Pedido(models.Model):
 	fecha = models.DateTimeField(auto_now_add=True)
 	createdAt = models.DateTimeField(auto_now_add=True)
 	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='proceso') 
+	alias = models.CharField(max_length=100, blank=True, null=True)
 	objects = procesoPedido()
 	
 	def __str__(self):

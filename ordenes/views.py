@@ -139,6 +139,27 @@ class cambiarStatusDetallePedido(APIView):
 			'detalleId': detalle.id,
 			'mostrarEnListado': detalle.mostrarEnListado
 		}, status=200)
+
+class ModificarnombreOrden(APIView):
+	def post(self, request):
+		nuevoNombre = request.data.get('nuevoNombre')
+		pedidoId = request.data['pedidoId']
+  
+		if not pedidoId:
+			return Response({'error': 'El pedidoId es obligatorio'}, status=400)
+
+		pedido = Pedido.objects.filter(id=pedidoId).first()
+		if not pedido:
+			return Response({'error': 'Pedido no encontrado'}, status=404)
+
+		pedido.nombreOrden = nuevoNombre
+		pedido.save()
+
+		return Response({
+			'success': True,
+			'pedidoId': pedido.id,
+			'nuevoNombreOrden': pedido.nombreOrden
+		}, status=200)
 		
 class ObtenerTodasLasMesasConProductos(APIView):
 	def get(self, request):
@@ -776,3 +797,5 @@ class EliminarPedidoCompleto(APIView):
 				'status': mesa.status
 			}
 		}, status=200)
+  
+  
