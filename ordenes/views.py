@@ -411,20 +411,43 @@ class ObtenerHistorialVentasPorDia(APIView):
 		
 class agregarProductosAPedido(APIView):
 	def post(self, request):
-		pedidoId = request. data.get("pedidoId")
+		pedidoId = request.data.get("pedidoId")
+		mesaId = request.data.get("mesaId")
+		grupoId = request.data.get("grupoId")
 		productos = request.data.get("productos")
-		
-		if not pedidoId or not productos:
-			return Response({
-				"error": "Los campos pedidoId y productos son obligatorios"
-			}, status=400)
-		
-		# Verificar que el pedido existe
-		pedido = Pedido. objects.filter(id=pedidoId).first()
-		if not pedido:
-			return Response({
-				"error": "El pedido especificado no existe"
-			}, status=400)
+
+		if not productos:
+			return Response({"error": "El campo productos es obligatorio"}, status=400)
+
+		if not pedidoId and not mesaId and not grupoId:
+			return Response({"error": "Debes enviar pedidoId, mesaId o grupoId"}, status=400)
+
+		if pedidoId:
+			pedido = Pedido.objects.filter(id=pedidoId).first()
+			if not pedido:
+				return Response({"error": "El pedido especificado no existe"}, status=404)
+		else:
+			if grupoId:
+				mesa = Mesa.objects.filter(grupo_id=grupoId).select_related('grupo').first()
+				if not mesa:
+					return Response({"error": "El grupo especificado no existe o no tiene mesas"}, status=400)
+				# Buscar el pedido activo más reciente del grupo
+				pedido = Pedido.objects.filter(
+					idMesa__grupo_id=grupoId
+				).exclude(status='completado').order_by('-fecha').first()
+			else:
+				mesa = Mesa.objects.filter(id=mesaId).select_related('grupo').first()
+				if not mesa:
+					return Response({"error": "La mesa especificada no existe"}, status=400)
+				if mesa.grupo:
+					return Response({"error": f"La mesa {mesa.numeroMesa} pertenece al grupo {mesa.grupo_id}. Usa grupoId en lugar de mesaId."}, status=400)
+				# Buscar el pedido activo más reciente de la mesa
+				pedido = Pedido.objects.filter(
+					idMesa_id=mesaId
+				).exclude(status='completado').order_by('-fecha').first()
+
+			if not pedido:
+				return Response({"error": "No hay pedido activo para la mesa/grupo especificado"}, status=404)
 		
 		productosAgregados = []
 		for producto in productos:
