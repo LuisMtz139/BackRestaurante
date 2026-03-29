@@ -258,11 +258,40 @@ class ObtenerTodasLasMesasConProductos(APIView):
 				if pedidos_data:
 					mesas_agrupadas = list(mesas_del_grupo.values('id', 'numeroMesa'))
 					nombreGrupo = ", ".join(f"Mesa {m['numeroMesa']}" for m in sorted(mesas_agrupadas, key=lambda m: m['numeroMesa']))
+
+					# Consolidar productos de todos los pedidos del grupo
+					consolidado = defaultdict(lambda: {
+						"productoId": None, "nombreProducto": "", "precioUnitario": 0,
+						"cantidad": 0, "precioTotal": 0, "statuses": []
+					})
+					for p in pedidos_data:
+						for det in p["detalles"]:
+							pid = det["productoId"]
+							if consolidado[pid]["productoId"] is None:
+								consolidado[pid]["productoId"] = det["productoId"]
+								consolidado[pid]["nombreProducto"] = det["nombreProducto"]
+								consolidado[pid]["precioUnitario"] = det["precioUnitario"]
+							consolidado[pid]["cantidad"] += det["cantidad"]
+							consolidado[pid]["precioTotal"] += det["precioTotal"]
+							consolidado[pid]["statuses"].append(det["statusDetalle"])
+
+					productos_consolidados = []
+					for item in consolidado.values():
+						statuses = item.pop("statuses")
+						if "proceso" in statuses or "pendiente" in statuses:
+							item["statusDetalle"] = "proceso"
+						elif all(s == "completado" for s in statuses):
+							item["statusDetalle"] = "completado"
+						else:
+							item["statusDetalle"] = statuses[0]
+						productos_consolidados.append(item)
+
 					mesas_data.append({
 						"esGrupo": True,
 						"grupoId": mesa.grupo_id,
 						"nombreGrupo": nombreGrupo,
 						"mesasAgrupadas": mesas_agrupadas,
+						"productosAgrupados": productos_consolidados,
 						"pedidos": pedidos_data
 					})
 			else:
