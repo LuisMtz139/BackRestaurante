@@ -15,26 +15,34 @@ class crearOrden(APIView):
 	def post(self, request):
 		nombreOrden = request.data.get("nombreOrden")
 		mesaId = request.data.get("mesaId")
+		grupoId = request.data.get("grupoId")
 		productos = request.data.get("productos")
 		status = request.data.get("status", "proceso")
 
-		if not nombreOrden or not mesaId or not productos or not status:
+		if not nombreOrden or not productos or not status:
 			return Response({"error": "Todos los campos son obligatorios"}, status=400)
 
-		# Buscar la mesa y actualizar el status a False (ocupada)
-		mesa = Mesa.objects.filter(id=mesaId).select_related('grupo').first()
-		if not mesa:
-			return Response({"error": "La mesa especificada no existe"}, status=400)
-		mesa.status = False
-		mesa.save()
+		if not mesaId and not grupoId:
+			return Response({"error": "Debes enviar mesaId o grupoId"}, status=400)
 
-		# Si la mesa pertenece a un grupo, marcar todas las mesas del grupo como ocupadas
-		if mesa.grupo:
-			Mesa.objects.filter(grupo=mesa.grupo).update(status=False)
+		if grupoId:
+			# Buscar la primera mesa del grupo para asociar el pedido
+			mesa = Mesa.objects.filter(grupo_id=grupoId).select_related('grupo').first()
+			if not mesa:
+				return Response({"error": "El grupo especificado no existe o no tiene mesas"}, status=400)
+			Mesa.objects.filter(grupo_id=grupoId).update(status=False)
+		else:
+			mesa = Mesa.objects.filter(id=mesaId).select_related('grupo').first()
+			if not mesa:
+				return Response({"error": "La mesa especificada no existe"}, status=400)
+			if mesa.grupo:
+				return Response({"error": f"La mesa {mesa.numeroMesa} pertenece al grupo {mesa.grupo_id}. Usa grupoId en lugar de mesaId."}, status=400)
+			mesa.status = False
+			mesa.save()
 
 		pedido = Pedido.objects.create(
 			nombreOrden=nombreOrden,
-			idMesa_id=mesaId,
+			idMesa_id=mesa.id,
 		)
 
 		for producto in productos:
