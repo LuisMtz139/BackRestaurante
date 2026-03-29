@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\(package\\\\.json|\\\\.js$\\)\")",
+      "Bash(find . -type f -name *cuenta* -o -name *bill* -o -name *account*)",
+      "Bash(python manage.py makemigrations mesas)",
+      "Bash(python manage.py migrate mesas)",
+      "Bash(python manage.py check)"
+    ]
+  }
+}

@@ -22,11 +22,15 @@ class crearOrden(APIView):
 			return Response({"error": "Todos los campos son obligatorios"}, status=400)
 
 		# Buscar la mesa y actualizar el status a False (ocupada)
-		mesa = Mesa.objects.filter(id=mesaId).first()
+		mesa = Mesa.objects.filter(id=mesaId).select_related('grupo').first()
 		if not mesa:
 			return Response({"error": "La mesa especificada no existe"}, status=400)
 		mesa.status = False
-		mesa. save()
+		mesa.save()
+
+		# Si la mesa pertenece a un grupo, marcar todas las mesas del grupo como ocupadas
+		if mesa.grupo:
+			Mesa.objects.filter(grupo=mesa.grupo).update(status=False)
 
 		pedido = Pedido.objects.create(
 			nombreOrden=nombreOrden,
@@ -62,23 +66,23 @@ class crearOrden(APIView):
 			"success": True,
 			"pedidoId": pedido.id,
 			"nombreOrden": pedido.nombreOrden,
-			"mesaId": pedido. idMesa_id,
+			"mesaId": pedido.idMesa_id,
+			"grupoId": mesa.grupo_id,
 			"productos": productos
 		}, status=201)
 			
 class obtenerListaPedidosPendientes(APIView):
 	def get(self, request):
-		pedidos = Pedido.objects.all().order_by('fecha')
+		pedidos = Pedido.objects.all().order_by('fecha').select_related('idMesa__grupo')
 		pedidosPorMesa = []
-		
+
 		for pedido in pedidos:
 			mesa = pedido.idMesa
-			# Filtra por status Y por mostrarEnListado del producto
 			detalles = pedido.detalles.filter(
 				status="proceso",
 				producto__mostrarEnListado=True
 			)
-			
+
 			listaDetalles = []
 			for detalle in detalles:
 				listaDetalles.append({
@@ -91,30 +95,45 @@ class obtenerListaPedidosPendientes(APIView):
 					"mostrarEnListado": detalle.producto.mostrarEnListado if detalle.producto else False,
 					"fecha": detalle.fecha,
 				})
-			
+
 			if not listaDetalles:
 				continue
-			
+
 			pedidoInfo = {
 				"pedidoId": pedido.id,
 				"nombreOrden": pedido.nombreOrden,
 				"fecha": pedido.fecha,
+				"mesaNumero": mesa.numeroMesa,
 				"detalles": listaDetalles
 			}
-			
-			mesaExistente = next((m for m in pedidosPorMesa if m["numeroMesa"] == mesa.numeroMesa), None)
-			
-			if not mesaExistente:
-				pedidosPorMesa.append({
-					"numeroMesa": mesa.numeroMesa,
-					"pedidos": [pedidoInfo]
-				})
+
+			if mesa.grupo:
+				grupoExistente = next((g for g in pedidosPorMesa if g.get("grupoId") == mesa.grupo_id), None)
+				if not grupoExistente:
+					mesas_del_grupo = list(Mesa.objects.filter(grupo=mesa.grupo).values('id', 'numeroMesa'))
+					pedidosPorMesa.append({
+						"esGrupo": True,
+						"grupoId": mesa.grupo_id,
+						"mesasAgrupadas": mesas_del_grupo,
+						"pedidos": [pedidoInfo]
+					})
+				else:
+					grupoExistente["pedidos"].append(pedidoInfo)
 			else:
-				mesaExistente["pedidos"].append(pedidoInfo)
-		
+				mesaExistente = next((m for m in pedidosPorMesa if m.get("numeroMesa") == mesa.numeroMesa), None)
+				if not mesaExistente:
+					pedidosPorMesa.append({
+						"esGrupo": False,
+						"grupoId": None,
+						"numeroMesa": mesa.numeroMesa,
+						"pedidos": [pedidoInfo]
+					})
+				else:
+					mesaExistente["pedidos"].append(pedidoInfo)
+
 		if not pedidosPorMesa:
 			return Response({"message": "No hay pedidos pendientes"}, status=200)
-		
+
 		return Response({
 			"success": True,
 			"pedidosPorMesa": pedidosPorMesa
@@ -163,94 +182,133 @@ class ModificarnombreOrden(APIView):
 		
 class ObtenerTodasLasMesasConProductos(APIView):
 	def get(self, request):
-		mesas = Mesa.objects.filter(status=False)  # Solo mesas ocupadas
+		mesas = Mesa.objects.filter(status=False).select_related('grupo')
 		mesas_data = []
-		
+		grupos_procesados = set()
+
 		for mesa in mesas:
-			# Solo pedidos que NO estén completados
-			pedidos_activos = mesa.pedido_set.exclude(
-				status='completado'
-			).order_by('-fecha')
-   			
-			pedidos_data = []
-			for pedido in pedidos_activos:
-				detalles = pedido.detalles.all()
-				
-				# Agrupar productos por productoId
-				productos_agrupados = defaultdict(lambda: {
-					"cantidad": 0,
-					"precioTotal": 0,
-					"detalleId": None,
-					"productoId": None,
-					"nombreProducto": "",
-					"precioUnitario": 0,
-					"observaciones": "",
-					"statusDetalle": "",
-					"fechaPedido": None,
-					"nombreOrden": "",
-					"pedidoId": None,
-					"statuses": []  # Lista para acumular todos los estados
-				})
-				
-				for detalle in detalles:
-					# Filtrar detalles cancelados
-					if detalle.status == 'cancelado':
-						continue
-					
-					producto_id = detalle.producto.id if detalle.producto else None
-					
-					if productos_agrupados[producto_id]["detalleId"] is None:
-						# Primera vez que vemos este producto
-						productos_agrupados[producto_id]["detalleId"] = detalle.id
-						productos_agrupados[producto_id]["productoId"] = producto_id
-						productos_agrupados[producto_id]["nombreProducto"] = detalle.producto.nombre if detalle.producto else "Producto eliminado"
-						productos_agrupados[producto_id]["precioUnitario"] = float(detalle.producto.precio) if detalle.producto else 0
-						productos_agrupados[producto_id]["observaciones"] = detalle.observaciones
-						productos_agrupados[producto_id]["fechaPedido"] = pedido.fecha
-						productos_agrupados[producto_id]["nombreOrden"] = pedido.nombreOrden
-						productos_agrupados[producto_id]["pedidoId"] = pedido.id
-					
-					# Acumular todos los estados
-					productos_agrupados[producto_id]["statuses"].append(detalle.status)
-					
-					# Sumar cantidad y precio
-					productos_agrupados[producto_id]["cantidad"] += detalle.cantidad
-					productos_agrupados[producto_id]["precioTotal"] += float(detalle.producto.precio) * detalle.cantidad if detalle.producto else 0
-				
-				# Determinar el status final y convertir a lista
-				detalles_data = []
-				for producto in productos_agrupados.values():
-					statuses = producto.pop("statuses")  # Remover la lista temporal
-					
-					# Si hay al menos un "proceso" o "pendiente", el status es "proceso"
-					if "proceso" in statuses or "pendiente" in statuses:
-						producto["statusDetalle"] = "proceso"
-					elif all(s == "completado" for s in statuses):
-						producto["statusDetalle"] = "completado"
-					else:
-						# Por si hay otros estados
-						producto["statusDetalle"] = statuses[0]
-					
-					detalles_data.append(producto)
-				
-				# Solo agregar pedido si tiene detalles (después de filtrar cancelados)
-				if detalles_data:
-					pedidos_data.append({
-						"pedidoId": pedido.id,
-						"nombreOrden": pedido.nombreOrden,
-						"fechaPedido": pedido.fecha,
-						"statusPedido": pedido.status,
-						"detalles": detalles_data,
+			if mesa.grupo:
+				if mesa.grupo_id in grupos_procesados:
+					continue
+				grupos_procesados.add(mesa.grupo_id)
+
+				mesas_del_grupo = Mesa.objects.filter(grupo=mesa.grupo)
+				pedidos_data = []
+
+				for m in mesas_del_grupo:
+					pedidos_activos = m.pedido_set.exclude(status='completado').order_by('-fecha')
+					for pedido in pedidos_activos:
+						detalles = pedido.detalles.all()
+						productos_agrupados = defaultdict(lambda: {
+							"cantidad": 0, "precioTotal": 0, "detalleId": None,
+							"productoId": None, "nombreProducto": "", "precioUnitario": 0,
+							"observaciones": "", "statusDetalle": "", "fechaPedido": None,
+							"nombreOrden": "", "pedidoId": None, "mesaNumero": None, "statuses": []
+						})
+						for detalle in detalles:
+							if detalle.status == 'cancelado':
+								continue
+							producto_id = detalle.producto.id if detalle.producto else None
+							if productos_agrupados[producto_id]["detalleId"] is None:
+								productos_agrupados[producto_id]["detalleId"] = detalle.id
+								productos_agrupados[producto_id]["productoId"] = producto_id
+								productos_agrupados[producto_id]["nombreProducto"] = detalle.producto.nombre if detalle.producto else "Producto eliminado"
+								productos_agrupados[producto_id]["precioUnitario"] = float(detalle.producto.precio) if detalle.producto else 0
+								productos_agrupados[producto_id]["observaciones"] = detalle.observaciones
+								productos_agrupados[producto_id]["fechaPedido"] = pedido.fecha
+								productos_agrupados[producto_id]["nombreOrden"] = pedido.nombreOrden
+								productos_agrupados[producto_id]["pedidoId"] = pedido.id
+								productos_agrupados[producto_id]["mesaNumero"] = m.numeroMesa
+							productos_agrupados[producto_id]["statuses"].append(detalle.status)
+							productos_agrupados[producto_id]["cantidad"] += detalle.cantidad
+							productos_agrupados[producto_id]["precioTotal"] += float(detalle.producto.precio) * detalle.cantidad if detalle.producto else 0
+
+						detalles_data = []
+						for producto in productos_agrupados.values():
+							statuses = producto.pop("statuses")
+							if "proceso" in statuses or "pendiente" in statuses:
+								producto["statusDetalle"] = "proceso"
+							elif all(s == "completado" for s in statuses):
+								producto["statusDetalle"] = "completado"
+							else:
+								producto["statusDetalle"] = statuses[0]
+							detalles_data.append(producto)
+
+						if detalles_data:
+							pedidos_data.append({
+								"pedidoId": pedido.id,
+								"nombreOrden": pedido.nombreOrden,
+								"fechaPedido": pedido.fecha,
+								"statusPedido": pedido.status,
+								"mesaNumero": m.numeroMesa,
+								"mesaId": m.id,
+								"detalles": detalles_data,
+							})
+
+				if pedidos_data:
+					mesas_data.append({
+						"esGrupo": True,
+						"grupoId": mesa.grupo_id,
+						"mesasAgrupadas": list(mesas_del_grupo.values('id', 'numeroMesa')),
+						"pedidos": pedidos_data
 					})
-			
-			# Solo agregar mesa si tiene pedidos activos
-			if pedidos_data:
-				mesas_data.append({
-					"id": mesa.id,
-					"numeroMesa": mesa.numeroMesa,
-					"status": mesa.status,
-					"pedidos": pedidos_data
-				})
+			else:
+				pedidos_activos = mesa.pedido_set.exclude(status='completado').order_by('-fecha')
+				pedidos_data = []
+				for pedido in pedidos_activos:
+					detalles = pedido.detalles.all()
+					productos_agrupados = defaultdict(lambda: {
+						"cantidad": 0, "precioTotal": 0, "detalleId": None,
+						"productoId": None, "nombreProducto": "", "precioUnitario": 0,
+						"observaciones": "", "statusDetalle": "", "fechaPedido": None,
+						"nombreOrden": "", "pedidoId": None, "statuses": []
+					})
+					for detalle in detalles:
+						if detalle.status == 'cancelado':
+							continue
+						producto_id = detalle.producto.id if detalle.producto else None
+						if productos_agrupados[producto_id]["detalleId"] is None:
+							productos_agrupados[producto_id]["detalleId"] = detalle.id
+							productos_agrupados[producto_id]["productoId"] = producto_id
+							productos_agrupados[producto_id]["nombreProducto"] = detalle.producto.nombre if detalle.producto else "Producto eliminado"
+							productos_agrupados[producto_id]["precioUnitario"] = float(detalle.producto.precio) if detalle.producto else 0
+							productos_agrupados[producto_id]["observaciones"] = detalle.observaciones
+							productos_agrupados[producto_id]["fechaPedido"] = pedido.fecha
+							productos_agrupados[producto_id]["nombreOrden"] = pedido.nombreOrden
+							productos_agrupados[producto_id]["pedidoId"] = pedido.id
+						productos_agrupados[producto_id]["statuses"].append(detalle.status)
+						productos_agrupados[producto_id]["cantidad"] += detalle.cantidad
+						productos_agrupados[producto_id]["precioTotal"] += float(detalle.producto.precio) * detalle.cantidad if detalle.producto else 0
+
+					detalles_data = []
+					for producto in productos_agrupados.values():
+						statuses = producto.pop("statuses")
+						if "proceso" in statuses or "pendiente" in statuses:
+							producto["statusDetalle"] = "proceso"
+						elif all(s == "completado" for s in statuses):
+							producto["statusDetalle"] = "completado"
+						else:
+							producto["statusDetalle"] = statuses[0]
+						detalles_data.append(producto)
+
+					if detalles_data:
+						pedidos_data.append({
+							"pedidoId": pedido.id,
+							"nombreOrden": pedido.nombreOrden,
+							"fechaPedido": pedido.fecha,
+							"statusPedido": pedido.status,
+							"detalles": detalles_data,
+						})
+
+				if pedidos_data:
+					mesas_data.append({
+						"esGrupo": False,
+						"grupoId": None,
+						"id": mesa.id,
+						"numeroMesa": mesa.numeroMesa,
+						"status": mesa.status,
+						"pedidos": pedidos_data
+					})
 
 		return Response({
 			"success": True,
@@ -497,23 +555,35 @@ class ActualizarStatusDetalle(APIView):
 		
 class CompletarYTotalPedido(APIView):
 	def post(self, request, pedido_id):
-		pedido = Pedido.objects.filter(id=pedido_id).first()
+		pedido = Pedido.objects.filter(id=pedido_id).select_related('idMesa__grupo').first()
 		if not pedido:
 			return Response({'error': 'Pedido no encontrado'}, status=404)
 
+		mesa = pedido.idMesa
 		detalles = pedido.detalles.all()
 		total = 0
 
 		for detalle in detalles:
-			if detalle.producto:  # Verifica que el producto exista (no eliminado)
+			if detalle.producto:
 				subtotal = detalle.producto.precio * detalle.cantidad
 				total += subtotal
 			detalle.status = "completado"
 			detalle.save()
 
+		# Si la mesa pertenece a un grupo, sumar todos los pedidos del grupo
+		if mesa.grupo:
+			otros_pedidos = Pedido.objects.filter(
+				idMesa__grupo=mesa.grupo
+			).exclude(id=pedido_id).prefetch_related('detalles__producto')
+			for p in otros_pedidos:
+				for d in p.detalles.all():
+					if d.producto and d.status != 'cancelado':
+						total += float(d.producto.precio) * d.cantidad
+
 		return Response({
 			'success': True,
 			'pedidoId': pedido.id,
+			'grupoId': mesa.grupo_id,
 			'total': total
 		}, status=200)
 
@@ -772,25 +842,41 @@ class EliminarDetallesDePedido(APIView):
 		
 class EliminarPedidoCompleto(APIView):
 	def delete(self, request, idMesa):
-		pedido = Pedido.objects.filter(id=idMesa).select_related('idMesa').first()
+		pedido = Pedido.objects.filter(id=idMesa).select_related('idMesa__grupo').first()
 		if not pedido:
 			return Response({'error': 'Pedido no encontrado'}, status=404)
 
 		mesa = pedido.idMesa
 
 		with transaction.atomic():
-			# Borra el pedido; DetallePedido se borra por cascada
 			pedido.delete()
 
-			# Verifica si la mesa queda sin pedidos
-			tiene_pedidos = mesa.pedido_set.exists()
-			if not tiene_pedidos and mesa.status is False:
-				mesa.status = True
-				mesa.save()
+			if mesa.grupo:
+				mesas_grupo = Mesa.objects.filter(grupo=mesa.grupo)
+				grupo_tiene_pedidos = mesas_grupo.filter(pedido__isnull=False).exists()
+				if not grupo_tiene_pedidos:
+					grupo = mesa.grupo
+					mesas_info = list(mesas_grupo.values('id', 'numeroMesa'))
+					mesas_grupo.update(status=True, grupo=None)
+					grupo.delete()
+					return Response({
+						'success': True,
+						'message': 'Pedido eliminado. Grupo disuelto y mesas liberadas.',
+						'mesasLiberadas': mesas_info
+					}, status=200)
+				return Response({
+					'success': True,
+					'message': 'Pedido eliminado. El grupo aún tiene pedidos activos.',
+				}, status=200)
+			else:
+				tiene_pedidos = mesa.pedido_set.exists()
+				if not tiene_pedidos and mesa.status is False:
+					mesa.status = True
+					mesa.save()
 
 		return Response({
 			'success': True,
-			'message': f'Pedido eliminado correctamente. Mesa {mesa.numeroMesa} {"liberada" if not tiene_pedidos else "permanece ocupada"}.',
+			'message': f'Pedido eliminado correctamente. Mesa {mesa.numeroMesa} {"liberada" if not mesa.pedido_set.exists() else "permanece ocupada"}.',
 			'mesa': {
 				'id': mesa.id,
 				'numeroMesa': mesa.numeroMesa,

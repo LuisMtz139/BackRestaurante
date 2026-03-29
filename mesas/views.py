@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
 
-from mesas.models import Mesa
+from mesas.models import Mesa, GrupoMesas
 from ordenes.models import *
 
 
@@ -39,41 +39,60 @@ class EliminarMesa(APIView):
 
 class ActualizarStatusMesa(APIView):
 	def post(self, request, mesa_id):
-		mesa = Mesa.objects.filter(id=mesa_id).first()
+		mesa = Mesa.objects.filter(id=mesa_id).select_related('grupo').first()
 		if not mesa:
 			return Response({'error': 'Mesa no encontrada'}, status=404)
-		
+
 		nuevo_status = request.data.get('status')
 		if nuevo_status is None:
 			return Response({'error': 'El campo status es obligatorio y debe ser true o false.'}, status=400)
-		
-		# Si se quiere cambiar a status=True (liberar la mesa)
+
 		if nuevo_status is True or nuevo_status == "true" or nuevo_status == 1:
-			productos_en_proceso = mesa.pedido_set.filter(detalles__status="proceso").exists()
-			if productos_en_proceso:
+			if mesa.grupo:
+				mesas_grupo = Mesa.objects.filter(grupo=mesa.grupo)
+				# Verificar que ninguna mesa del grupo tenga productos en proceso
+				for m in mesas_grupo:
+					if m.pedido_set.filter(detalles__status="proceso").exists():
+						return Response({
+							'success': False,
+							'message': f'No se puede liberar el grupo porque la mesa {m.numeroMesa} aún tiene productos en proceso.'
+						}, status=400)
+
+				with transaction.atomic():
+					for m in mesas_grupo:
+						m.pedido_set.exclude(status='completado').update(status='completado')
+					grupo = mesa.grupo
+					mesas_info = list(mesas_grupo.values('id', 'numeroMesa'))
+					mesas_grupo.update(status=True, grupo=None)
+					grupo.delete()
+
 				return Response({
-					'success': False,
-					'message': f'No se puede liberar la mesa {mesa.numeroMesa} porque aún hay productos en proceso.'
-				}, status=400)
-			
-			# Marcar todos los pedidos de la mesa como completados
-			mesa.pedido_set.exclude(status='completado').update(status='completado')
-			
-			# Liberar la mesa
-			mesa.status = True
-			mesa.save()
-			
-			return Response({
-				'success': True,
-				'message': f'Mesa {mesa.numeroMesa} liberada correctamente.',
-				'mesa': {
-					'id': mesa.id,
-					'numeroMesa': mesa.numeroMesa,
-					'status': mesa.status
-				}
-			}, status=200)
-		
-		# Si se quiere cambiar a status=False (ocupar la mesa)
+					'success': True,
+					'message': 'Grupo de mesas liberado correctamente.',
+					'mesas': mesas_info
+				}, status=200)
+			else:
+				productos_en_proceso = mesa.pedido_set.filter(detalles__status="proceso").exists()
+				if productos_en_proceso:
+					return Response({
+						'success': False,
+						'message': f'No se puede liberar la mesa {mesa.numeroMesa} porque aún hay productos en proceso.'
+					}, status=400)
+
+				mesa.pedido_set.exclude(status='completado').update(status='completado')
+				mesa.status = True
+				mesa.save()
+
+				return Response({
+					'success': True,
+					'message': f'Mesa {mesa.numeroMesa} liberada correctamente.',
+					'mesa': {
+						'id': mesa.id,
+						'numeroMesa': mesa.numeroMesa,
+						'status': mesa.status
+					}
+				}, status=200)
+
 		else:
 			mesa.status = bool(nuevo_status)
 			mesa.save()
@@ -86,6 +105,7 @@ class ActualizarStatusMesa(APIView):
 					'status': mesa.status
 				}
 			}, status=200)
+
 class modificarStatusMesa(APIView):
 	def put(self, request, id):
 		if not id:
@@ -106,78 +126,96 @@ class modificarStatusMesa(APIView):
 			'numeroMesa': mesa.numeroMesa,
 			'status': mesa.status,
 		}, status=200)
-		
+
 class lsitarMesasStatus(APIView):
 	def get(self, request):
-		mesas = Mesa.objects.obtenerMesas()
+		mesas = Mesa.objects.obtenerMesas().select_related('grupo')
 		if not mesas:
 			return Response({'mensaje': 'No hay mesas registradas'}, status=404)
 
-		mesas_data = [{'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'status': mesa.status} for mesa in mesas]
-		return Response(mesas_data, status=200)
-	
-	
+		resultado = []
+		grupos_procesados = {}
+		contador_grupo = 1
+
+		for mesa in mesas:
+			if mesa.grupo_id:
+				if mesa.grupo_id not in grupos_procesados:
+					# Primera mesa del grupo: crear la entrada del grupo
+					etiqueta = f'Agrupado {contador_grupo}'
+					contador_grupo += 1
+					entrada_grupo = {
+						'esGrupo': True,
+						'grupoId': mesa.grupo_id,
+						'etiquetaGrupo': etiqueta,
+						'status': mesa.status,
+						'mesas': [{'id': mesa.id, 'numeroMesa': mesa.numeroMesa}]
+					}
+					grupos_procesados[mesa.grupo_id] = entrada_grupo
+					resultado.append(entrada_grupo)
+				else:
+					# Mesa adicional del mismo grupo: solo agregar a la lista
+					grupos_procesados[mesa.grupo_id]['mesas'].append({
+						'id': mesa.id,
+						'numeroMesa': mesa.numeroMesa
+					})
+			else:
+				resultado.append({
+					'esGrupo': False,
+					'grupoId': None,
+					'etiquetaGrupo': None,
+					'id': mesa.id,
+					'numeroMesa': mesa.numeroMesa,
+					'status': mesa.status,
+				})
+
+		return Response(resultado, status=200)
+
+
 class AtenderMesaCompleta(APIView):
 	def post(self, request, mesa_id):
-		
-		mesa = Mesa.objects.filter(numeroMesa=mesa_id).first()
+		mesa = Mesa.objects.filter(numeroMesa=mesa_id).select_related('grupo').first()
 		if not mesa:
 			return Response({'error': 'Mesa no encontrada'}, status=404)
 
-		todos_pedidos = Pedido.objects.filter(idMesa=mesa)
-		
-		print(f"Pedidos encontrados para mesa {mesa.numeroMesa}: {todos_pedidos.count()}")
-		for p in todos_pedidos:
-			print(f"  Pedido {p.id}: {p.status}")
-			detalles_proceso = p.detalles.filter(status='proceso')
-			print(f"    Detalles en proceso: {detalles_proceso.count()}")
+		# Si la mesa pertenece a un grupo, atender todas las mesas del grupo
+		if mesa.grupo:
+			mesas_a_atender = Mesa.objects.filter(grupo=mesa.grupo)
+		else:
+			mesas_a_atender = Mesa.objects.filter(id=mesa.id)
 
-		pedidos_con_detalles_proceso = todos_pedidos.filter(
-			detalles__status='proceso'
-		).distinct()
-		
+		todos_pedidos = Pedido.objects.filter(idMesa__in=mesas_a_atender)
+		pedidos_con_detalles_proceso = todos_pedidos.filter(detalles__status='proceso').distinct()
+
 		if not pedidos_con_detalles_proceso.exists():
 			return Response({
 				'success': True,
 				'message': f'La mesa {mesa.numeroMesa} no tiene detalles de pedidos pendientes.',
 				'mesa': {'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'status': mesa.status},
+				'grupoId': mesa.grupo_id,
 				'resumen': {'pedidosAtendidos': 0, 'totalMesa': 0.0, 'pedidos': []},
-				'debug': {
-					'totalPedidos': todos_pedidos.count(),
-					'pedidosConDetallesProceso': pedidos_con_detalles_proceso.count()
-				}
 			}, status=200)
 
 		resumen_pedidos = []
 		total_mesa = 0.0
 
 		with transaction.atomic():
-			# 4) Obtener todos los detalles en proceso de la mesa
 			detalles_en_proceso = DetallePedido.objects.filter(
-				pedido__idMesa=mesa,
+				pedido__idMesa__in=mesas_a_atender,
 				status='proceso'
 			)
-			
-			print(f"Detalles en proceso encontrados: {detalles_en_proceso.count()}")
-			
-			# 5) Actualizar detalles a completado
 			detalles_actualizados = detalles_en_proceso.update(status='completado')
-			print(f"Detalles actualizados: {detalles_actualizados}")
 
-			# 6) Calcular totales por pedido
 			for pedido in pedidos_con_detalles_proceso.select_related('idMesa'):
 				qs_detalles = pedido.detalles.all().select_related('producto')
 				total_pedido = 0.0
-
-				# Sumar solo no cancelados y con producto válido
 				for d in qs_detalles:
 					if d.status != 'cancelado' and d.producto:
 						total_pedido += float(d.producto.precio) * d.cantidad
-
 				total_mesa += total_pedido
 				resumen_pedidos.append({
 					'pedidoId': pedido.id,
 					'nombreOrden': pedido.nombreOrden,
+					'mesaNumero': pedido.idMesa.numeroMesa,
 					'totalPedido': total_pedido,
 					'detalles': {
 						'total': qs_detalles.count(),
@@ -188,15 +226,60 @@ class AtenderMesaCompleta(APIView):
 
 		return Response({
 			'success': True,
-			'message': f'Se completaron {detalles_actualizados} detalle(s) de {len(resumen_pedidos)} pedido(s) de la mesa {mesa.numeroMesa}.',
-			'mesa': {
-				'id': mesa.id,
-				'numeroMesa': mesa.numeroMesa,
-				'status': mesa.status
-			},
+			'message': f'Se completaron {detalles_actualizados} detalle(s) de {len(resumen_pedidos)} pedido(s).',
+			'mesa': {'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'status': mesa.status},
+			'grupoId': mesa.grupo_id,
 			'resumen': {
 				'pedidosAtendidos': len(resumen_pedidos),
 				'totalMesa': total_mesa,
 				'pedidos': resumen_pedidos
 			}
+		}, status=200)
+
+
+class AgruparMesas(APIView):
+	def post(self, request):
+		mesa_ids = request.data.get('mesas', [])
+
+		if not mesa_ids or len(mesa_ids) < 2:
+			return Response({'error': 'Se necesitan al menos 2 mesas para agrupar'}, status=400)
+
+		mesas = Mesa.objects.filter(id__in=mesa_ids)
+		if mesas.count() != len(mesa_ids):
+			return Response({'error': 'Una o más mesas no existen'}, status=404)
+
+		mesas_con_grupo = mesas.filter(grupo__isnull=False)
+		if mesas_con_grupo.exists():
+			numeros = list(mesas_con_grupo.values_list('numeroMesa', flat=True))
+			return Response({'error': f'Las mesas {numeros} ya pertenecen a un grupo'}, status=400)
+
+		with transaction.atomic():
+			grupo = GrupoMesas.objects.create()
+			mesas.update(grupo=grupo, status=False)
+
+		mesas_actualizadas = Mesa.objects.filter(id__in=mesa_ids).values('id', 'numeroMesa', 'status')
+		return Response({
+			'success': True,
+			'grupoId': grupo.id,
+			'mesas': list(mesas_actualizadas)
+		}, status=201)
+
+
+class DesagruparMesas(APIView):
+	def delete(self, request, grupo_id):
+		grupo = GrupoMesas.objects.filter(id=grupo_id).first()
+		if not grupo:
+			return Response({'error': 'Grupo no encontrado'}, status=404)
+
+		mesas = Mesa.objects.filter(grupo=grupo)
+		mesas_info = list(mesas.values('id', 'numeroMesa'))
+
+		with transaction.atomic():
+			mesas.update(grupo=None)
+			grupo.delete()
+
+		return Response({
+			'success': True,
+			'message': f'Grupo {grupo_id} disuelto correctamente.',
+			'mesas': mesas_info
 		}, status=200)
