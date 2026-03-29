@@ -206,15 +206,25 @@ class lsitarMesasStatus(APIView):
 
 class AtenderMesaCompleta(APIView):
 	def post(self, request, mesa_id):
-		mesa = Mesa.objects.filter(numeroMesa=mesa_id).select_related('grupo').first()
-		if not mesa:
-			return Response({'error': 'Mesa no encontrada'}, status=404)
+		grupo_id = request.data.get('grupoId')
 
-		# Si la mesa pertenece a un grupo, atender todas las mesas del grupo
-		if mesa.grupo:
-			mesas_a_atender = Mesa.objects.filter(grupo=mesa.grupo)
+		if grupo_id:
+			grupo = GrupoMesas.objects.filter(id=grupo_id).first()
+			if not grupo:
+				return Response({'error': 'Grupo no encontrado'}, status=404)
+			mesas_a_atender = Mesa.objects.filter(grupo=grupo)
+			if not mesas_a_atender.exists():
+				return Response({'error': 'El grupo no tiene mesas'}, status=404)
+			mesa = mesas_a_atender.first()
 		else:
-			mesas_a_atender = Mesa.objects.filter(id=mesa.id)
+			mesa = Mesa.objects.filter(numeroMesa=mesa_id).select_related('grupo').first()
+			if not mesa:
+				return Response({'error': 'Mesa no encontrada'}, status=404)
+			# Si la mesa pertenece a un grupo, atender todas las mesas del grupo
+			if mesa.grupo:
+				mesas_a_atender = Mesa.objects.filter(grupo=mesa.grupo)
+			else:
+				mesas_a_atender = Mesa.objects.filter(id=mesa.id)
 
 		todos_pedidos = Pedido.objects.filter(idMesa__in=mesas_a_atender)
 		pedidos_con_detalles_proceso = todos_pedidos.filter(detalles__status='proceso').distinct()
