@@ -39,6 +39,39 @@ class EliminarMesa(APIView):
 
 class ActualizarStatusMesa(APIView):
 	def post(self, request, mesa_id):
+		grupo_id = request.data.get('grupoId')
+
+		if grupo_id:
+			grupo = GrupoMesas.objects.filter(id=grupo_id).first()
+			if not grupo:
+				return Response({'error': 'Grupo no encontrado'}, status=404)
+
+			nuevo_status = request.data.get('status')
+			if nuevo_status is None:
+				return Response({'error': 'El campo status es obligatorio y debe ser true o false.'}, status=400)
+
+			if nuevo_status is True or nuevo_status == "true" or nuevo_status == 1:
+				mesas_grupo = Mesa.objects.filter(grupo=grupo)
+				for m in mesas_grupo:
+					if m.pedido_set.filter(detalles__status="proceso").exists():
+						return Response({
+							'success': False,
+							'message': f'No se puede liberar el grupo porque la mesa {m.numeroMesa} aún tiene productos en proceso.'
+						}, status=400)
+
+				with transaction.atomic():
+					for m in mesas_grupo:
+						m.pedido_set.exclude(status='completado').update(status='completado')
+					mesas_info = list(mesas_grupo.values('id', 'numeroMesa'))
+					mesas_grupo.update(status=True, grupo=None)
+					grupo.delete()
+
+				return Response({
+					'success': True,
+					'message': 'Grupo de mesas liberado correctamente.',
+					'mesas': mesas_info
+				}, status=200)
+
 		mesa = Mesa.objects.filter(id=mesa_id).select_related('grupo').first()
 		if not mesa:
 			return Response({'error': 'Mesa no encontrada'}, status=404)
