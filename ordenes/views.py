@@ -119,9 +119,11 @@ class obtenerListaPedidosPendientes(APIView):
 				grupoExistente = next((g for g in pedidosPorMesa if g.get("grupoId") == mesa.grupo_id), None)
 				if not grupoExistente:
 					mesas_del_grupo = list(Mesa.objects.filter(grupo=mesa.grupo).values('id', 'numeroMesa'))
+					nombreGrupo = ", ".join(f"Mesa {m['numeroMesa']}" for m in sorted(mesas_del_grupo, key=lambda m: m['numeroMesa']))
 					pedidosPorMesa.append({
 						"esGrupo": True,
 						"grupoId": mesa.grupo_id,
+						"nombreGrupo": nombreGrupo,
 						"mesasAgrupadas": mesas_del_grupo,
 						"pedidos": [pedidoInfo]
 					})
@@ -254,10 +256,13 @@ class ObtenerTodasLasMesasConProductos(APIView):
 							})
 
 				if pedidos_data:
+					mesas_agrupadas = list(mesas_del_grupo.values('id', 'numeroMesa'))
+					nombreGrupo = ", ".join(f"Mesa {m['numeroMesa']}" for m in sorted(mesas_agrupadas, key=lambda m: m['numeroMesa']))
 					mesas_data.append({
 						"esGrupo": True,
 						"grupoId": mesa.grupo_id,
-						"mesasAgrupadas": list(mesas_del_grupo.values('id', 'numeroMesa')),
+						"nombreGrupo": nombreGrupo,
+						"mesasAgrupadas": mesas_agrupadas,
 						"pedidos": pedidos_data
 					})
 			else:
