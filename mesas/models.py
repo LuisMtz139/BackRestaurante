@@ -4,10 +4,11 @@ from mesas.manager import *
 
 class GrupoMesas(models.Model):
 	id = models.AutoField(primary_key=True)
+	nombre = models.CharField(max_length=100, blank=True, null=True)
 	createdAt = models.DateTimeField(auto_now_add=True)
 
 	def __str__(self):
-		return f'Grupo {self.id}'
+		return self.nombre if self.nombre else f'Grupo {self.id}'
 
 class Mesa(models.Model):
 	id = models.AutoField(primary_key=True)

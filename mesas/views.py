@@ -174,12 +174,15 @@ class lsitarMesasStatus(APIView):
 			if mesa.grupo_id:
 				if mesa.grupo_id not in grupos_procesados:
 					# Primera mesa del grupo: crear la entrada del grupo
-					etiqueta = f'Agrupado {contador_grupo}'
+					# Usar nombre personalizado si existe, de lo contrario el autogenerado
+					nombre_personalizado = mesa.grupo.nombre if mesa.grupo and mesa.grupo.nombre else None
+					etiqueta = nombre_personalizado if nombre_personalizado else f'Agrupado {contador_grupo}'
 					contador_grupo += 1
 					entrada_grupo = {
 						'esGrupo': True,
 						'grupoId': mesa.grupo_id,
 						'etiquetaGrupo': etiqueta,
+						'nombrePersonalizado': nombre_personalizado,
 						'status': mesa.status,
 						'mesas': [{'id': mesa.id, 'numeroMesa': mesa.numeroMesa}]
 					}
@@ -325,4 +328,26 @@ class DesagruparMesas(APIView):
 			'success': True,
 			'message': f'Grupo {grupo_id} disuelto correctamente.',
 			'mesas': mesas_info
+		}, status=200)
+
+class RenombrarGrupo(APIView):
+	def put(self, request, grupo_id):
+		grupo = GrupoMesas.objects.filter(id=grupo_id).first()
+		if not grupo:
+			return Response({'error': 'Grupo no encontrado'}, status=404)
+
+		nuevo_nombre = request.data.get('nombre', '').strip()
+		if not nuevo_nombre:
+			return Response({'error': 'El campo nombre es obligatorio'}, status=400)
+
+		grupo.nombre = nuevo_nombre
+		grupo.save()
+
+		mesas_del_grupo = list(Mesa.objects.filter(grupo=grupo).values('id', 'numeroMesa'))
+
+		return Response({
+			'success': True,
+			'grupoId': grupo.id,
+			'nombre': grupo.nombre,
+			'mesas': mesas_del_grupo
 		}, status=200)

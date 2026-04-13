@@ -11,4 +11,5 @@ urlpatterns = [
 	path('<int:mesa_id>/atender-todo/', AtenderMesaCompleta.as_view(), name='atender_mesa_completa'),
 	path('agruparMesas/', AgruparMesas.as_view(), name='agrupar_mesas'),
 	path('desagruparMesas/<int:grupo_id>/', DesagruparMesas.as_view(), name='desagrupar_mesas'),
+	path('renombrarGrupo/<int:grupo_id>/', RenombrarGrupo.as_view(), name='renombrar_grupo'),
 ]
