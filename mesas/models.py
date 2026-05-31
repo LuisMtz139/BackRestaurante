@@ -15,6 +15,7 @@ class Mesa(models.Model):
 	numeroMesa = models.IntegerField(unique=True)
 	status = models.BooleanField(default=True)
 	grupo = models.ForeignKey(GrupoMesas, null=True, blank=True, on_delete=models.SET_NULL, related_name='mesas')
+	mesaNombre = models.CharField(max_length=100, blank=True, null=True)
 
 	objects = procesosMesas()
 

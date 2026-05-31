@@ -7,11 +7,11 @@ class procesosMesas(models.Manager):
 	def obtenerMesas(self):
 		return self.all()
 	
-	def verificarExistenciaMesa(self, numeroMesa):
+	def verificarExistenciaMesa(self, numeroMesa, mesaNombre=None):
 		mesa = self.filter(numeroMesa=numeroMesa).first()
 		if mesa:
 			return None
-		nuevaMesa = self.create(numeroMesa=numeroMesa)
+		nuevaMesa = self.create(numeroMesa=numeroMesa, mesaNombre=mesaNombre or '')
 		return nuevaMesa
 	
 	def obtenerMesaPorId(self, id):

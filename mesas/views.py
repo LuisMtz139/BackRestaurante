@@ -10,18 +10,19 @@ from ordenes.models import *
 class CrearMesa(APIView):
 	def post(self, request):
 		numeroMesa = request.data.get('numeroMesa')
-
+		nombreMesa = request.data.get('mesaNombre', '').strip()
 		if not numeroMesa:
 			return Response('El número de mesa es obligatorio', status=400)
 
-		obtenerMesa = Mesa.objects.verificarExistenciaMesa(numeroMesa)
-		
+		obtenerMesa = Mesa.objects.verificarExistenciaMesa(numeroMesa, mesaNombre=nombreMesa)
+
 		if not obtenerMesa:
 			return Response('La mesa ya existe', status=400)
 
 		return Response({
 			'id': obtenerMesa.id,
 			'numeroMesa': obtenerMesa.numeroMesa,
+			'mesaNombre': obtenerMesa.mesaNombre,
 			'status': obtenerMesa.status,
 		}, status=201)
 		
@@ -62,7 +63,7 @@ class ActualizarStatusMesa(APIView):
 				with transaction.atomic():
 					for m in mesas_grupo:
 						m.pedido_set.exclude(status='completado').update(status='completado')
-					mesas_info = list(mesas_grupo.values('id', 'numeroMesa'))
+					mesas_info = list(mesas_grupo.values('id', 'numeroMesa', 'mesaNombre'))
 					mesas_grupo.update(status=True, grupo=None)
 					grupo.delete()
 
@@ -95,7 +96,7 @@ class ActualizarStatusMesa(APIView):
 					for m in mesas_grupo:
 						m.pedido_set.exclude(status='completado').update(status='completado')
 					grupo = mesa.grupo
-					mesas_info = list(mesas_grupo.values('id', 'numeroMesa'))
+					mesas_info = list(mesas_grupo.values('id', 'numeroMesa', 'mesaNombre'))
 					mesas_grupo.update(status=True, grupo=None)
 					grupo.delete()
 
@@ -122,6 +123,7 @@ class ActualizarStatusMesa(APIView):
 					'mesa': {
 						'id': mesa.id,
 						'numeroMesa': mesa.numeroMesa,
+						'mesaNombre': mesa.mesaNombre,
 						'status': mesa.status
 					}
 				}, status=200)
@@ -135,6 +137,7 @@ class ActualizarStatusMesa(APIView):
 				'mesa': {
 					'id': mesa.id,
 					'numeroMesa': mesa.numeroMesa,
+					'mesaNombre': mesa.mesaNombre,
 					'status': mesa.status
 				}
 			}, status=200)
@@ -153,10 +156,16 @@ class modificarStatusMesa(APIView):
 			return Response({'error': 'El estado es obligatorio'}, status=400)
 
 		mesa.status = status
+
+		mesaNombre = request.data.get('mesaNombre')
+		if mesaNombre is not None:
+			mesa.mesaNombre = mesaNombre.strip()
+
 		mesa.save()
 
 		return Response({
 			'numeroMesa': mesa.numeroMesa,
+			'mesaNombre': mesa.mesaNombre,
 			'status': mesa.status,
 		}, status=200)
 
@@ -184,7 +193,7 @@ class lsitarMesasStatus(APIView):
 						'etiquetaGrupo': etiqueta,
 						'nombrePersonalizado': nombre_personalizado,
 						'status': mesa.status,
-						'mesas': [{'id': mesa.id, 'numeroMesa': mesa.numeroMesa}]
+						'mesas': [{'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'mesaNombre': mesa.mesaNombre}]
 					}
 					grupos_procesados[mesa.grupo_id] = entrada_grupo
 					resultado.append(entrada_grupo)
@@ -192,7 +201,8 @@ class lsitarMesasStatus(APIView):
 					# Mesa adicional del mismo grupo: solo agregar a la lista
 					grupos_procesados[mesa.grupo_id]['mesas'].append({
 						'id': mesa.id,
-						'numeroMesa': mesa.numeroMesa
+						'numeroMesa': mesa.numeroMesa,
+						'mesaNombre': mesa.mesaNombre
 					})
 			else:
 				resultado.append({
@@ -201,6 +211,7 @@ class lsitarMesasStatus(APIView):
 					'etiquetaGrupo': None,
 					'id': mesa.id,
 					'numeroMesa': mesa.numeroMesa,
+					'mesaNombre': mesa.mesaNombre,
 					'status': mesa.status,
 				})
 
@@ -236,7 +247,7 @@ class AtenderMesaCompleta(APIView):
 			return Response({
 				'success': True,
 				'message': f'La mesa {mesa.numeroMesa} no tiene detalles de pedidos pendientes.',
-				'mesa': {'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'status': mesa.status},
+				'mesa': {'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'mesaNombre': mesa.mesaNombre, 'status': mesa.status},
 				'grupoId': mesa.grupo_id,
 				'resumen': {'pedidosAtendidos': 0, 'totalMesa': 0.0, 'pedidos': []},
 			}, status=200)
@@ -273,7 +284,7 @@ class AtenderMesaCompleta(APIView):
 		return Response({
 			'success': True,
 			'message': f'Se completaron {detalles_actualizados} detalle(s) de {len(resumen_pedidos)} pedido(s).',
-			'mesa': {'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'status': mesa.status},
+			'mesa': {'id': mesa.id, 'numeroMesa': mesa.numeroMesa, 'mesaNombre': mesa.mesaNombre, 'status': mesa.status},
 			'grupoId': mesa.grupo_id,
 			'resumen': {
 				'pedidosAtendidos': len(resumen_pedidos),
@@ -303,7 +314,7 @@ class AgruparMesas(APIView):
 			grupo = GrupoMesas.objects.create()
 			mesas.update(grupo=grupo, status=False)
 
-		mesas_actualizadas = Mesa.objects.filter(id__in=mesa_ids).values('id', 'numeroMesa', 'status')
+		mesas_actualizadas = Mesa.objects.filter(id__in=mesa_ids).values('id', 'numeroMesa', 'mesaNombre', 'status')
 		return Response({
 			'success': True,
 			'grupoId': grupo.id,
@@ -318,7 +329,7 @@ class DesagruparMesas(APIView):
 			return Response({'error': 'Grupo no encontrado'}, status=404)
 
 		mesas = Mesa.objects.filter(grupo=grupo)
-		mesas_info = list(mesas.values('id', 'numeroMesa'))
+		mesas_info = list(mesas.values('id', 'numeroMesa', 'mesaNombre'))
 
 		with transaction.atomic():
 			mesas.update(grupo=None)
@@ -343,7 +354,7 @@ class RenombrarGrupo(APIView):
 		grupo.nombre = nuevo_nombre
 		grupo.save()
 
-		mesas_del_grupo = list(Mesa.objects.filter(grupo=grupo).values('id', 'numeroMesa'))
+		mesas_del_grupo = list(Mesa.objects.filter(grupo=grupo).values('id', 'numeroMesa', 'mesaNombre'))
 
 		return Response({
 			'success': True,
